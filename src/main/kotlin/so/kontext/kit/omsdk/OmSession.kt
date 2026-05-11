@@ -26,51 +26,57 @@ public class OmSession(
             try {
                 val partnerClass = partner.javaClass
 
-                // Create context
-                val contextClass = Class.forName("com.iab.omid.library.kontextso.OMIDKontextsoAdSessionContext")
-                val context = contextClass.getConstructor(
+                val contextClass = Class.forName("com.iab.omid.library.kontextso.adsession.AdSessionContext")
+                val createContext = contextClass.getMethod(
+                    "createHtmlAdSessionContext",
                     partnerClass,
-                    android.view.View::class.java,
+                    WebView::class.java,
                     String::class.java,
                     String::class.java,
-                ).newInstance(partner, webView, url, null)
+                )
+                val context = createContext.invoke(null, partner, webView, url, "")
 
-                // Determine creative type and owners
-                val creativeTypeClass = Class.forName("com.iab.omid.library.kontextso.OMIDCreativeType")
-                val ownerClass = Class.forName("com.iab.omid.library.kontextso.OMIDOwner")
-                val impressionTypeClass = Class.forName("com.iab.omid.library.kontextso.OMIDImpressionType")
+                val creativeTypeClass = Class.forName("com.iab.omid.library.kontextso.adsession.CreativeType")
+                val ownerClass = Class.forName("com.iab.omid.library.kontextso.adsession.Owner")
+                val impressionTypeClass = Class.forName("com.iab.omid.library.kontextso.adsession.ImpressionType")
 
                 val omCreativeType: Any
+                val omImpressionType: Any
                 val mediaEventsOwner: Any
-                val jsOwner = ownerClass.getField("JAVASCRIPT_OWNER").get(null)!!
-                val noneOwner = ownerClass.getField("NONE_OWNER").get(null)!!
+                val jsOwner = ownerClass.getField("JAVASCRIPT").get(null)!!
+                val noneOwner = ownerClass.getField("NONE").get(null)!!
 
                 if (creativeType == OmCreativeType.VIDEO) {
                     omCreativeType = creativeTypeClass.getField("VIDEO").get(null)!!
                     mediaEventsOwner = jsOwner
                 } else {
                     omCreativeType = creativeTypeClass.getField("HTML_DISPLAY").get(null)!!
+                    omImpressionType = impressionTypeClass.getField("BEGIN_TO_RENDER").get(null)!!
                     mediaEventsOwner = noneOwner
                 }
 
-                val beginToRender = impressionTypeClass.getField("BEGIN_TO_RENDER").get(null)!!
-
-                // Create configuration
-                val configClass = Class.forName("com.iab.omid.library.kontextso.OMIDKontextsoAdSessionConfiguration")
-                val config = configClass.getConstructor(
+                val configClass = Class.forName("com.iab.omid.library.kontextso.adsession.AdSessionConfiguration")
+                val createConfiguration = configClass.getMethod(
+                    "createAdSessionConfiguration",
                     creativeTypeClass,
                     impressionTypeClass,
                     ownerClass,
                     ownerClass,
                     Boolean::class.java,
-                ).newInstance(omCreativeType, beginToRender, jsOwner, mediaEventsOwner, false)
+                )
+                val config = createConfiguration.invoke(
+                    null,
+                    omCreativeType,
+                    omImpressionType,
+                    jsOwner,
+                    mediaEventsOwner,
+                    false,
+                )
 
-                // Create session
-                val sessionClass = Class.forName("com.iab.omid.library.kontextso.OMIDKontextsoAdSession")
-                session = sessionClass.getConstructor(configClass, contextClass)
-                    .newInstance(config, context)
+                val sessionClass = Class.forName("com.iab.omid.library.kontextso.adsession.AdSession")
+                val createSession = sessionClass.getMethod("createAdSession", configClass, contextClass)
+                session = createSession.invoke(null, config, context)
 
-                // Register ad view
                 val registerAdView = sessionClass.getMethod("registerAdView", android.view.View::class.java)
                 registerAdView.invoke(session, webView)
             } catch (e: ReflectiveOperationException) {
@@ -144,13 +150,13 @@ public class OmSession(
     public fun logError(errorType: String?, message: String?) {
         if (session == null) return
         try {
-            val errorTypeClass = Class.forName("com.iab.omid.library.kontextso.OMIDErrorType")
+            val errorTypeClass = Class.forName("com.iab.omid.library.kontextso.adsession.ErrorType")
             val omErrorType = if (errorType == "video") {
-                errorTypeClass.getField("MEDIA").get(null)
+                errorTypeClass.getField("VIDEO").get(null)
             } else {
                 errorTypeClass.getField("GENERIC").get(null)
             }
-            session!!.javaClass.getMethod("logError", errorTypeClass, String::class.java)
+            session!!.javaClass.getMethod("error", errorTypeClass, String::class.java)
                 .invoke(session, omErrorType, message ?: "unknown")
         } catch (e: ReflectiveOperationException) {
             android.util.Log.w("Kontext SDK", "OM: logError failed", e)

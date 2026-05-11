@@ -28,18 +28,17 @@ class OmManagerTest {
     fun `activate returns false when OMSDK class not on classpath`() {
         val manager = OmManager(partner)
         assertFalse(
-            "activate() must degrade gracefully when OMSDK AAR is absent",
-            manager.activate(),
+            "activate(context) must degrade gracefully when OMSDK AAR is absent",
+            manager.activate(context),
         )
     }
 
     @Test
     fun `activate is idempotent across repeat calls`() {
         val manager = OmManager(partner)
-        val first = manager.activate()
-        val second = manager.activate()
-        // Both calls return the same activated state — manager caches
-        // the result on the first call.
+        val first = manager.activate(context)
+        val second = manager.activate(context)
+        // Both calls return the same activated state without throwing.
         assertFalse(first)
         assertFalse(second)
     }
@@ -89,8 +88,8 @@ class OmManagerTest {
         // own OmManager instances — used in tests to inject mocks.
         val managerA = OmManager(partner)
         val managerB = OmManager(OmPartner("Other", "9.9.9"))
-        managerA.activate()
-        managerB.activate()
+        managerA.activate(context)
+        managerB.activate(context)
         // Both stay un-activated because no OMID AAR; the test is about
         // independence (no exception cross-talk), not about activation
         // success.
