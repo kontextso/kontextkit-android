@@ -3,6 +3,7 @@ package so.kontext.kit.omsdk
 import android.content.Context
 import android.webkit.WebView
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
 import so.kontext.kit.R
 
 /**
@@ -113,11 +114,19 @@ public class OmManager(partner: OmPartner) : OmManaging {
         val session = OmSession(webView, url, creativeType, partnerRef)
         android.util.Log.d(TAG, "createSession: OmSession instantiated, isValid=${session.isValid}")
         if (session.isValid) {
-            // 50 ms between registerAdView (done inside OmSession.init) and
-            // start() — matches v3 sdk-kotlin + iOS sdk-swift. Lets the
-            // WebView geometry stabilise so the OMID JS layer's `loaded` and
-            // `impression` events fire against a stable adView.geometry,
-            // not a 1x1 placeholder.
+            // For video, wait until the inner `<video>` element has loaded
+            // metadata (`readyState >= 1`) so it has non-zero intrinsic
+            // dimensions when OMID measures `adView.geometry` at impression
+            // time. Without this, cold-start WebViews fire impression while
+            // the videoEl is still 0×0 → OMID reports
+            // `geometry: 0×0 + reasons: ["hidden"]`, IAB compliance failure.
+            // Polls every 25 ms up to 500 ms; warm sessions return
+            // immediately, cold sessions wait only as long as needed.
+            if (creativeType == OmCreativeType.VIDEO) {
+                waitForVideoMetadata(webView)
+            }
+            // Geometry-stabilisation pause between registerAdView and start().
+            // Matches v3 sdk-kotlin + iOS sdk-swift.
             delay(GEOMETRY_STABILITY_DELAY_MS)
             session.start()
             android.util.Log.d(
@@ -134,6 +143,46 @@ public class OmManager(partner: OmPartner) : OmManaging {
         }
         return session.takeIf { it.isValid }
     }
+
+    /**
+     * Polls the WebView's `<video>` element via JS until it reports
+     * `readyState >= 1` (HAVE_METADATA — intrinsic width/height available),
+     * or [VIDEO_METADATA_POLL_MAX_MS] elapses. Returns immediately if the
+     * video already has metadata (warm session) or there is no `<video>`
+     * element in the document.
+     *
+     * Used for video creative types — OMID JS measures the videoEl's
+     * bounding rect for `adView.geometry`. Until metadata loads the rect
+     * is 0×0 and OMID reports `reasons: ["hidden"]` in the impression
+     * payload, which fails IAB compliance.
+     */
+    private suspend fun waitForVideoMetadata(webView: WebView) {
+        val deadline = System.currentTimeMillis() + VIDEO_METADATA_POLL_MAX_MS
+        while (System.currentTimeMillis() < deadline) {
+            val ready = pollVideoReady(webView)
+            if (ready) {
+                android.util.Log.d(TAG, "waitForVideoMetadata: video ready")
+                return
+            }
+            delay(VIDEO_METADATA_POLL_INTERVAL_MS)
+        }
+        android.util.Log.w(
+            TAG,
+            "waitForVideoMetadata: timed out after ${VIDEO_METADATA_POLL_MAX_MS}ms",
+        )
+    }
+
+    private suspend fun pollVideoReady(webView: WebView): Boolean =
+        suspendCancellableCoroutine { cont ->
+            try {
+                webView.evaluateJavascript(VIDEO_READY_PROBE) { result ->
+                    if (cont.isActive) cont.resume(result == "true") {}
+                }
+            } catch (e: IllegalStateException) {
+                android.util.Log.w(TAG, "pollVideoReady: evaluateJavascript failed", e)
+                if (cont.isActive) cont.resume(false) {}
+            }
+        }
 
     /**
      * Builds the OMID `Partner` instance via reflection. The IAB API
@@ -166,12 +215,39 @@ public class OmManager(partner: OmPartner) : OmManaging {
 
         /**
          * Pause between OmSession init (which calls `registerAdView`) and
-         * `start()` — gives WebView geometry a chance to settle so the
-         * OMID `loaded` and `impression` JS events fire against the
-         * stable adView.geometry, not a 1x1 placeholder. Matches v3
-         * sdk-kotlin + iOS sdk-swift.
+         * `start()` for display ads — gives WebView geometry a chance to
+         * settle so the OMID `loaded` and `impression` JS events fire
+         * against a stable adView.geometry, not a 1×1 placeholder. Matches
+         * v3 sdk-kotlin + iOS sdk-swift.
          */
         private const val GEOMETRY_STABILITY_DELAY_MS = 50L
+
+        /**
+         * Maximum total wait for video metadata to load before falling
+         * back to `session.start()` anyway. 500 ms covers cold-start
+         * metadata load with margin; beyond that something is wrong
+         * (network failure, video src 404) and we shouldn't block ads.
+         */
+        private const val VIDEO_METADATA_POLL_MAX_MS = 500L
+
+        /**
+         * Poll interval for [waitForVideoMetadata]. 25 ms gives ~20
+         * polls within the 500 ms budget — fine-grained enough to
+         * exit promptly when metadata lands, cheap enough that the
+         * JS-bridge round-trips don't add measurable overhead.
+         */
+        private const val VIDEO_METADATA_POLL_INTERVAL_MS = 25L
+
+        /**
+         * JS probe — returns `true` (string) when there is a `<video>`
+         * element in the document with `readyState >= 1` (HAVE_METADATA).
+         * Also returns `true` when there is no `<video>` (display ad in
+         * the document; the caller only invokes this for video creatives,
+         * but the guard is defensive against malformed iframes).
+         */
+        private const val VIDEO_READY_PROBE =
+            "(function(){var v=document.querySelector('video');" +
+                "return !v||v.readyState>=1;})()"
 
         /**
          * Returns the contents of the bundled `omsdk_v1.js` script. Consumer
