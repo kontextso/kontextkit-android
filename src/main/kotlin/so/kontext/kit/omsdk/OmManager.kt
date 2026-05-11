@@ -11,7 +11,7 @@ import so.kontext.kit.R
  * SDK. Mirrors iOS's `OMManaging`.
  */
 public interface OmManaging {
-    public fun activate(): Boolean
+    public fun activate(context: Context): Boolean
     public suspend fun createSession(
         webView: WebView,
         url: String?,
@@ -27,7 +27,13 @@ public interface OmManaging {
  *
  * The OMID library is accessed entirely via reflection so the SDK
  * compiles even without the OMID AAR; if it's not on the classpath,
- * `activate()` returns `false` and `createSession(...)` returns `null`.
+ * `activate(context)` returns `false` and `createSession(...)` returns `null`.
+ *
+ * Class names + APIs mirror the IAB OMID Android library at
+ * `com.iab.omid.library.kontextso.*`. Top-level entry points
+ * (`Omid`) sit at the package root; everything session-related
+ * (`Partner`, `AdSession`, `AdSessionContext`, etc.) lives under
+ * `.adsession`. The reflection here must match those paths exactly.
  */
 public class OmManager(partner: OmPartner) : OmManaging {
 
@@ -37,22 +43,19 @@ public class OmManager(partner: OmPartner) : OmManaging {
 
     /**
      * Activates the OMID SDK. Idempotent — subsequent calls return the
-     * already-active state. Mirrors iOS's `activate()` (the OMID iOS
-     * spec documents `OMIDKontextsoSDK.shared.activate()` as synchronous,
-     * which is why we can read `isActive` immediately after).
+     * already-active state. Requires a Context to register the SDK with
+     * the host application.
      */
-    public override fun activate(): Boolean {
+    public override fun activate(context: Context): Boolean {
         if (activated) return true
 
         return try {
-            val sdkClass = Class.forName("com.iab.omid.library.kontextso.OMIDKontextsoSDK")
-            val getInstance = sdkClass.getMethod("getInstance")
-            val sdk = getInstance.invoke(null)
-            val activateMethod = sdk.javaClass.getMethod("activate")
-            activateMethod.invoke(sdk)
+            val omidClass = Class.forName("com.iab.omid.library.kontextso.Omid")
+            val activateMethod = omidClass.getMethod("activate", Context::class.java)
+            activateMethod.invoke(null, context)
 
-            val isActiveMethod = sdk.javaClass.getMethod("isActive")
-            activated = isActiveMethod.invoke(sdk) as Boolean
+            val isActiveMethod = omidClass.getMethod("isActive")
+            activated = isActiveMethod.invoke(null) as Boolean
 
             if (activated) {
                 cachedPartner = createOmidPartner()
@@ -92,11 +95,20 @@ public class OmManager(partner: OmPartner) : OmManaging {
         }
     }
 
+    /**
+     * Builds the OMID `Partner` instance via reflection. The IAB API
+     * uses a static factory (`Partner.createPartner(name, version)`),
+     * not a constructor.
+     */
     private fun createOmidPartner(): Any? {
         return try {
-            val partnerClass = Class.forName("com.iab.omid.library.kontextso.OMIDKontextsoPartner")
-            partnerClass.getConstructor(String::class.java, String::class.java)
-                .newInstance(partner.name, partner.version)
+            val partnerClass = Class.forName("com.iab.omid.library.kontextso.adsession.Partner")
+            val createPartner = partnerClass.getMethod(
+                "createPartner",
+                String::class.java,
+                String::class.java,
+            )
+            createPartner.invoke(null, partner.name, partner.version)
         } catch (e: ReflectiveOperationException) {
             android.util.Log.w("Kontext SDK", "OM: partner creation failed", e)
             null

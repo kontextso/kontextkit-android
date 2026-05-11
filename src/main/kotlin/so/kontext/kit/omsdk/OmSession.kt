@@ -2,13 +2,33 @@ package so.kontext.kit.omsdk
 
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.webkit.WebView
 
 /**
  * Wraps a single OMID ad session for one WebView.
  *
- * Uses reflection to interact with the OMID library so the SDK compiles
- * even without the OMID dependency (graceful degradation).
+ * Reflective so the SDK compiles even without the OMID AAR on the
+ * classpath (graceful degradation). Class names + factory methods
+ * mirror the IAB OMID Android API exactly:
+ *
+ *   com.iab.omid.library.kontextso.adsession.AdSession
+ *   com.iab.omid.library.kontextso.adsession.AdSessionConfiguration
+ *   com.iab.omid.library.kontextso.adsession.AdSessionContext
+ *   com.iab.omid.library.kontextso.adsession.CreativeType
+ *   com.iab.omid.library.kontextso.adsession.ErrorType
+ *   com.iab.omid.library.kontextso.adsession.ImpressionType
+ *   com.iab.omid.library.kontextso.adsession.Owner
+ *   com.iab.omid.library.kontextso.adsession.Partner
+ *
+ * All construction goes through static factories (`createX(...)`),
+ * not constructors — that's the published IAB pattern.
+ *
+ * Per the IAB OMID Android `#webview-video` guidance, HTML video
+ * sessions use `CreativeType.DEFINED_BY_JAVASCRIPT` +
+ * `ImpressionType.DEFINED_BY_JAVASCRIPT` + `Owner.JAVASCRIPT` for the
+ * media-events owner. Display sessions use `CreativeType.HTML_DISPLAY`
+ * + `ImpressionType.BEGIN_TO_RENDER` + `Owner.NONE` for media events.
  */
 public class OmSession(
     private val webView: WebView,
@@ -24,55 +44,66 @@ public class OmSession(
     init {
         if (partner != null) {
             try {
-                val partnerClass = partner.javaClass
+                val partnerClass = Class.forName("com.iab.omid.library.kontextso.adsession.Partner")
+                val contextClass = Class.forName("com.iab.omid.library.kontextso.adsession.AdSessionContext")
+                val configClass = Class.forName("com.iab.omid.library.kontextso.adsession.AdSessionConfiguration")
+                val sessionClass = Class.forName("com.iab.omid.library.kontextso.adsession.AdSession")
+                val creativeTypeClass = Class.forName("com.iab.omid.library.kontextso.adsession.CreativeType")
+                val impressionTypeClass = Class.forName("com.iab.omid.library.kontextso.adsession.ImpressionType")
+                val ownerClass = Class.forName("com.iab.omid.library.kontextso.adsession.Owner")
 
-                // Create context
-                val contextClass = Class.forName("com.iab.omid.library.kontextso.OMIDKontextsoAdSessionContext")
-                val context = contextClass.getConstructor(
+                // AdSessionContext.createHtmlAdSessionContext(partner, webView, contentUrl, customReferenceData)
+                val createContext = contextClass.getMethod(
+                    "createHtmlAdSessionContext",
                     partnerClass,
-                    android.view.View::class.java,
+                    WebView::class.java,
                     String::class.java,
                     String::class.java,
-                ).newInstance(partner, webView, url, null)
+                )
+                val context = createContext.invoke(null, partner, webView, url, "")
 
-                // Determine creative type and owners
-                val creativeTypeClass = Class.forName("com.iab.omid.library.kontextso.OMIDCreativeType")
-                val ownerClass = Class.forName("com.iab.omid.library.kontextso.OMIDOwner")
-                val impressionTypeClass = Class.forName("com.iab.omid.library.kontextso.OMIDImpressionType")
-
-                val omCreativeType: Any
-                val mediaEventsOwner: Any
-                val jsOwner = ownerClass.getField("JAVASCRIPT_OWNER").get(null)!!
-                val noneOwner = ownerClass.getField("NONE_OWNER").get(null)!!
-
-                if (creativeType == OmCreativeType.VIDEO) {
-                    omCreativeType = creativeTypeClass.getField("VIDEO").get(null)!!
-                    mediaEventsOwner = jsOwner
+                // Pick creative-type / impression-type / media-events-owner triple.
+                // Video uses the DEFINED_BY_JAVASCRIPT triplet per the IAB
+                // OMID Android #webview-video docs — native VIDEO + BEGIN_TO_RENDER
+                // trips an Android-only code path that produces a 1x1
+                // adView.geometry, failing OMID compliance.
+                val (omCreativeType, omImpressionType, mediaOwner) = if (creativeType == OmCreativeType.VIDEO) {
+                    Triple(
+                        creativeTypeClass.getField("DEFINED_BY_JAVASCRIPT").get(null)!!,
+                        impressionTypeClass.getField("DEFINED_BY_JAVASCRIPT").get(null)!!,
+                        ownerClass.getField("JAVASCRIPT").get(null)!!,
+                    )
                 } else {
-                    omCreativeType = creativeTypeClass.getField("HTML_DISPLAY").get(null)!!
-                    mediaEventsOwner = noneOwner
+                    Triple(
+                        creativeTypeClass.getField("HTML_DISPLAY").get(null)!!,
+                        impressionTypeClass.getField("BEGIN_TO_RENDER").get(null)!!,
+                        ownerClass.getField("NONE").get(null)!!,
+                    )
                 }
+                val jsOwner = ownerClass.getField("JAVASCRIPT").get(null)!!
 
-                val beginToRender = impressionTypeClass.getField("BEGIN_TO_RENDER").get(null)!!
-
-                // Create configuration
-                val configClass = Class.forName("com.iab.omid.library.kontextso.OMIDKontextsoAdSessionConfiguration")
-                val config = configClass.getConstructor(
+                // AdSessionConfiguration.createAdSessionConfiguration(
+                //     creative, impression, owner, mediaOwner, isolateVerificationScripts=false
+                // )
+                val createConfig = configClass.getMethod(
+                    "createAdSessionConfiguration",
                     creativeTypeClass,
                     impressionTypeClass,
                     ownerClass,
                     ownerClass,
-                    Boolean::class.java,
-                ).newInstance(omCreativeType, beginToRender, jsOwner, mediaEventsOwner, false)
+                    Boolean::class.javaPrimitiveType,
+                )
+                val config = createConfig.invoke(null, omCreativeType, omImpressionType, jsOwner, mediaOwner, false)
 
-                // Create session
-                val sessionClass = Class.forName("com.iab.omid.library.kontextso.OMIDKontextsoAdSession")
-                session = sessionClass.getConstructor(configClass, contextClass)
-                    .newInstance(config, context)
+                // AdSession.createAdSession(config, context)
+                val createSession = sessionClass.getMethod("createAdSession", configClass, contextClass)
+                val sess = createSession.invoke(null, config, context)
 
-                // Register ad view
-                val registerAdView = sessionClass.getMethod("registerAdView", android.view.View::class.java)
-                registerAdView.invoke(session, webView)
+                // session.registerAdView(webView)
+                val registerAdView = sessionClass.getMethod("registerAdView", View::class.java)
+                registerAdView.invoke(sess, webView)
+
+                session = sess
             } catch (e: ReflectiveOperationException) {
                 android.util.Log.w("Kontext SDK", "OM: session init failed", e)
                 session = null
@@ -137,23 +168,28 @@ public class OmSession(
         Handler(Looper.getMainLooper()).postDelayed({ heldWebView.toString() }, OMID_FINISH_HOLD_MS)
     }
 
-    private companion object {
-        private const val OMID_FINISH_HOLD_MS = 1_000L
-    }
-
+    /**
+     * Reports a session-level error to the OMID JS verification layer.
+     * The IAB Android API exposes this as `AdSession.error(ErrorType, String)`,
+     * not `logError(...)`.
+     */
     public fun logError(errorType: String?, message: String?) {
         if (session == null) return
         try {
-            val errorTypeClass = Class.forName("com.iab.omid.library.kontextso.OMIDErrorType")
+            val errorTypeClass = Class.forName("com.iab.omid.library.kontextso.adsession.ErrorType")
             val omErrorType = if (errorType == "video") {
-                errorTypeClass.getField("MEDIA").get(null)
+                errorTypeClass.getField("VIDEO").get(null)
             } else {
                 errorTypeClass.getField("GENERIC").get(null)
             }
-            session!!.javaClass.getMethod("logError", errorTypeClass, String::class.java)
+            session!!.javaClass.getMethod("error", errorTypeClass, String::class.java)
                 .invoke(session, omErrorType, message ?: "unknown")
         } catch (e: ReflectiveOperationException) {
-            android.util.Log.w("Kontext SDK", "OM: logError failed", e)
+            android.util.Log.w("Kontext SDK", "OM: error report failed", e)
         }
+    }
+
+    private companion object {
+        private const val OMID_FINISH_HOLD_MS = 1_000L
     }
 }
