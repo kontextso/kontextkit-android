@@ -1,0 +1,46 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      KontextKit Android — declared permissions for the kit's own features.
+
+      Library `<uses-permission>` entries auto-merge into the consuming
+      app's manifest at build time, so apps that depend on KontextKit
+      via Maven (or composite build) automatically get the perms below
+      without having to remember to declare them themselves.
+
+      Vendored consumers (sdk-react-native/android, sdk-flutter/android
+      while pre-publish) declare the same set in their own plugin
+      manifests because manifest-merge only kicks in for real Gradle
+      dependencies, not source-vendored files.
+    -->
+
+    <!-- NetworkInfoProvider — reads ConnectivityManager.activeNetwork +
+         NetworkCapabilities to report wifi / cellular / ethernet / other. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- AdvertisingIdProvider — IPCs to Play Services for the GAID.
+         Android 13+ requires apps that use the GAID to declare AD_ID;
+         declaring it from a library auto-merges into consuming apps. -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+
+    <!--
+      INTENTIONALLY NOT DECLARED:
+
+      - android.permission.INTERNET
+        The kit makes no HTTP calls of its own. Consumer SDKs that fire
+        /preload, /init, /error (sdk-kotlin) declare INTERNET themselves
+        — apps that integrate the kit but skip the SDK's network layer
+        (e.g. for OMID-only use) shouldn't be forced to take INTERNET.
+
+      - android.permission.WRITE_SETTINGS
+        Required by BrightnessManager.set() for writing
+        Settings.System.SCREEN_BRIGHTNESS. This is a "Special permission"
+        the user has to grant via Settings.ACTION_MANAGE_WRITE_SETTINGS,
+        not a runtime prompt. Apps that don't use ad-driven brightness
+        shouldn't have to justify it at Play Store review. Host apps
+        that DO use BrightnessManager.set must declare it themselves;
+        BrightnessManager.set silently no-ops when the host hasn't
+        granted the permission, so feature-gating is graceful.
+    -->
+
+</manifest>

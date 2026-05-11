@@ -1,0 +1,55 @@
+name: Publish to Maven Central
+
+# Triggered by pushing a tag matching `X.Y.Z` (or `X.Y.Z-SNAPSHOT` for
+# testing the publish flow without going to release). Vanniktech
+# maven-publish reads coordinates from -P args, signs all publications,
+# and automatically releases to Maven Central.
+#
+# Required secrets (set in repo Settings → Secrets and variables → Actions):
+#   - MAVEN_CENTRAL_USERNAME
+#   - MAVEN_CENTRAL_PASSWORD
+#   - SIGNING_KEY              (GPG private key, ASCII-armored, single line)
+#   - SIGNING_PASSWORD         (passphrase for the signing key)
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+      - '*.*.*-SNAPSHOT'
+
+jobs:
+  publish:
+    name: Publish to Maven Central
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to Maven Central
+        env:
+          MAVEN_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: >
+          ./gradlew publishToMavenCentral
+          -PkitVersion=${{ steps.version.outputs.version }}
+          -PmavenCentralUsername="$MAVEN_USERNAME"
+          -PmavenCentralPassword="$MAVEN_PASSWORD"
+          -PsigningInMemoryKey="$SIGNING_KEY"
+          -PsigningInMemoryKeyPassword="$SIGNING_PASSWORD"

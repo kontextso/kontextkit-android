@@ -1,0 +1,65 @@
+# Gradle Version Catalog — single source of truth for plugin and
+# library versions. Referenced from build.gradle.kts via
+# `alias(libs.plugins.foo)` and `implementation(libs.bar)`. Letting
+# Gradle generate the type-safe accessors means version bumps happen
+# in one place and IDE autocomplete works across all build files.
+#
+# Versions are intentionally aligned with sdk-kotlin's catalog so
+# contributors don't juggle two AGP / Kotlin / ktlint baselines.
+
+[versions]
+
+# ---- Kit version ----
+# Default published version. Overridden at publish time via
+# `./gradlew publish -PkitVersion=1.1.0` so CI can cut releases
+# without bumping this file. Consumed by build.gradle.kts as the
+# fallback when the `kitVersion` Gradle property is absent.
+kit = "0.0.1"
+
+# ---- Build tooling ----
+agp = "8.2.0"                       # Android Gradle Plugin
+kotlin = "1.9.22"                   # Kotlin compiler version
+
+# ---- Code-quality plugins ----
+maven-publish = "0.34.0"            # vanniktech maven-publish
+spotless = "6.25.0"
+detekt = "1.23.4"
+ktlint = "0.50.0"                   # consumed inside spotless { ktlint(...) }
+
+# ---- AndroidX ----
+androidx-browser = "1.7.0"          # Chrome Custom Tabs (InAppBrowserManager)
+androidx-preference = "1.2.1"       # SharedPreferences (TCFDataProvider)
+
+# ---- Play Services ----
+play-services-ads-identifier = "18.0.1"  # GAID (AdvertisingIdProvider)
+
+# ---- Test libraries ----
+junit = "4.13.2"                    # JUnit 4 — matches v3 sdk-kotlin :ads stack
+robolectric = "4.11.1"
+androidx-test-core = "1.5.0"
+kotlinx-coroutines = "1.8.1"
+
+
+[libraries]
+
+# AndroidX
+androidx-browser = { module = "androidx.browser:browser", version.ref = "androidx-browser" }
+androidx-preference-ktx = { module = "androidx.preference:preference-ktx", version.ref = "androidx-preference" }
+
+# Play Services
+play-services-ads-identifier = { module = "com.google.android.gms:play-services-ads-identifier", version.ref = "play-services-ads-identifier" }
+
+# Test
+junit = { module = "junit:junit", version.ref = "junit" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidx-test-core" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
+
+
+[plugins]
+
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "maven-publish" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

@@ -1,0 +1,23 @@
+.DS_Store
+
+# Gradle
+.gradle/
+build/
+out/
+**/build/
+captures/
+.cxx/
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+*.iws
+*.ipr
+local.properties
+
+# Local credentials — keep out of source control
+# (template lives at gradle.properties.example)
+secret.properties
+
+# OS
+Thumbs.db
