@@ -127,19 +127,20 @@ public class OmManager(partner: OmPartner) : OmManaging {
      * is 0×0 and OMID reports `reasons: ["hidden"]` in the impression
      * payload, which fails IAB compliance.
      */
-    private suspend fun waitForVideoMetadata(webView: WebView) {
-        val deadline = System.currentTimeMillis() + VIDEO_METADATA_POLL_MAX_MS
-        while (System.currentTimeMillis() < deadline) {
-            if (pollVideoReady(webView)) return
-            delay(VIDEO_METADATA_POLL_INTERVAL_MS)
+    internal suspend fun waitForVideoMetadata(webView: WebView) {
+        val gotMetadata = pollWithTimeout(
+            maxWaitMs = VIDEO_METADATA_POLL_MAX_MS,
+            pollIntervalMs = VIDEO_METADATA_POLL_INTERVAL_MS,
+        ) { pollVideoReady(webView) }
+        if (!gotMetadata) {
+            android.util.Log.w(
+                TAG,
+                "waitForVideoMetadata: timed out after ${VIDEO_METADATA_POLL_MAX_MS}ms",
+            )
         }
-        android.util.Log.w(
-            TAG,
-            "waitForVideoMetadata: timed out after ${VIDEO_METADATA_POLL_MAX_MS}ms",
-        )
     }
 
-    private suspend fun pollVideoReady(webView: WebView): Boolean =
+    internal suspend fun pollVideoReady(webView: WebView): Boolean =
         suspendCancellableCoroutine { cont ->
             try {
                 webView.evaluateJavascript(VIDEO_READY_PROBE) { result ->
@@ -209,6 +210,26 @@ public class OmManager(partner: OmPartner) : OmManaging {
         private const val VIDEO_READY_PROBE =
             "(function(){var v=document.querySelector('video');" +
                 "return !v||v.readyState>=1;})()"
+
+        /**
+         * Polls [pollNow] repeatedly with [pollIntervalMs] gaps until it
+         * returns `true` or [maxWaitMs] elapses. Returns `true` on early
+         * exit, `false` on timeout. Extracted from [waitForVideoMetadata]
+         * for unit-testing the deadline math without needing a real
+         * WebView + JS bridge.
+         */
+        internal suspend fun pollWithTimeout(
+            maxWaitMs: Long,
+            pollIntervalMs: Long,
+            pollNow: suspend () -> Boolean,
+        ): Boolean {
+            val deadline = System.currentTimeMillis() + maxWaitMs
+            while (System.currentTimeMillis() < deadline) {
+                if (pollNow()) return true
+                delay(pollIntervalMs)
+            }
+            return false
+        }
 
         /**
          * Returns the contents of the bundled `omsdk_v1.js` script. Consumer

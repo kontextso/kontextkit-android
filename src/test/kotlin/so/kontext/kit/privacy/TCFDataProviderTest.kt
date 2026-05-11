@@ -141,6 +141,40 @@ class TCFDataProviderTest {
     }
 
     @Test
+    fun `accepts gdprApplies stored as a Long when value fits in Int`() {
+        // SharedPreferences offers no `putLong` for our key, but `getAll`
+        // can surface Long values when keys are written by other code paths
+        // sharing the same prefs file. 0/1 Longs round-trip cleanly.
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+
+        prefs.edit().putLong("IABTCF_gdprApplies", 1L).apply()
+        assertEquals(1, TCFDataProvider.collect(context).gdpr)
+
+        prefs.edit().putLong("IABTCF_gdprApplies", 0L).apply()
+        assertEquals(0, TCFDataProvider.collect(context).gdpr)
+    }
+
+    @Test
+    fun `rejects gdprApplies Long that overflows Int range`() {
+        // A misbehaving CMP writing `Long.MAX_VALUE` must NOT silently
+        // truncate to Int.MAX_VALUE (or worse, an in-range value via
+        // overflow). The `raw.toInt().takeIf { it.toLong() == raw }` guard
+        // catches the lossy conversion and decays to null.
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+
+        prefs.edit().putLong("IABTCF_gdprApplies", Long.MAX_VALUE).apply()
+        assertNull(TCFDataProvider.collect(context).gdpr)
+
+        prefs.edit().putLong("IABTCF_gdprApplies", Long.MIN_VALUE).apply()
+        assertNull(TCFDataProvider.collect(context).gdpr)
+
+        // Out-of-range Long values still rejected by the {0,1} filter even
+        // if they fit in Int.
+        prefs.edit().putLong("IABTCF_gdprApplies", 5L).apply()
+        assertNull(TCFDataProvider.collect(context).gdpr)
+    }
+
+    @Test
     fun `accepts gdprApplies stored as a Boolean`() {
         // Some CMPs write a Bool — coerced to 1/0.
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
