@@ -66,7 +66,11 @@ public class OmManager(partner: OmPartner) : OmManaging {
 
             if (activated) {
                 cachedPartner = createOmidPartner()
-                android.util.Log.d(TAG, "activate: partner cached = ${cachedPartner != null} (${partner.name} / ${partner.version})")
+                android.util.Log.d(
+                    TAG,
+                    "activate: partner cached = ${cachedPartner != null} " +
+                        "(${partner.name} / ${partner.version})",
+                )
             }
             activated
         } catch (e: ReflectiveOperationException) {
@@ -90,29 +94,45 @@ public class OmManager(partner: OmPartner) : OmManaging {
         url: String?,
         creativeType: OmCreativeType,
     ): OmSession? {
-        android.util.Log.d(TAG, "createSession: activated=$activated partnerCached=${cachedPartner != null} creativeType=$creativeType url=$url")
-        if (!activated || cachedPartner == null) {
-            android.util.Log.w(TAG, "createSession: cannot create — activated=$activated partner=${cachedPartner != null}")
+        android.util.Log.d(
+            TAG,
+            "createSession: activated=$activated " +
+                "partnerCached=${cachedPartner != null} " +
+                "creativeType=$creativeType url=$url",
+        )
+        val partnerRef = cachedPartner
+        if (!activated || partnerRef == null) {
+            android.util.Log.w(
+                TAG,
+                "createSession: cannot create — " +
+                    "activated=$activated partner=${partnerRef != null}",
+            )
             return null
         }
 
-        val session = OmSession(webView, url, creativeType, cachedPartner)
+        val session = OmSession(webView, url, creativeType, partnerRef)
         android.util.Log.d(TAG, "createSession: OmSession instantiated, isValid=${session.isValid}")
-        if (!session.isValid) {
-            android.util.Log.w(TAG, "createSession: session.isValid=false — reflection in OmSession.init failed (check earlier Log.w)")
-            return null
+        if (session.isValid) {
+            // 50 ms between registerAdView (done inside OmSession.init) and
+            // start() — matches v3 sdk-kotlin + iOS sdk-swift. Lets the
+            // WebView geometry stabilise so the OMID JS layer's `loaded` and
+            // `impression` events fire against a stable adView.geometry,
+            // not a 1x1 placeholder.
+            delay(GEOMETRY_STABILITY_DELAY_MS)
+            session.start()
+            android.util.Log.d(
+                TAG,
+                "createSession: session.start() returned " +
+                    "(session.started should now be true)",
+            )
+        } else {
+            android.util.Log.w(
+                TAG,
+                "createSession: session.isValid=false — " +
+                    "reflection in OmSession.init failed (check earlier Log.w)",
+            )
         }
-
-        // 50 ms between registerAdView (done inside OmSession.init) and
-        // start() — matches v3 sdk-kotlin + iOS sdk-swift. Lets the
-        // WebView geometry stabilise so the OMID JS layer's `loaded` and
-        // `impression` events fire against a stable adView.geometry,
-        // not a 1x1 placeholder.
-        delay(GEOMETRY_STABILITY_DELAY_MS)
-
-        session.start()
-        android.util.Log.d(TAG, "createSession: session.start() returned (session.started should now be true)")
-        return session
+        return session.takeIf { it.isValid }
     }
 
     /**
@@ -129,7 +149,11 @@ public class OmManager(partner: OmPartner) : OmManaging {
                 String::class.java,
             )
             val result = createPartner.invoke(null, partner.name, partner.version)
-            android.util.Log.d(TAG, "createOmidPartner: Partner.createPartner(${partner.name}, ${partner.version}) → $result")
+            android.util.Log.d(
+                TAG,
+                "createOmidPartner: Partner.createPartner(" +
+                    "${partner.name}, ${partner.version}) → $result",
+            )
             result
         } catch (e: ReflectiveOperationException) {
             android.util.Log.w(TAG, "OM: partner creation failed", e)

@@ -33,11 +33,14 @@ import android.webkit.WebView
 public class OmSession(
     private val webView: WebView,
     private val url: String?,
-    creativeType: OmCreativeType,
+    private val creativeType: OmCreativeType,
     partner: Any?,
 ) {
     private var session: Any? = null
+    private var adEvents: Any? = null
     private var started = false
+    private var loadedFired = false
+    private var impressionFired = false
 
     public val isValid: Boolean get() = session != null
 
@@ -66,28 +69,34 @@ public class OmSession(
                 val context = createContext.invoke(null, partner, webView, url, "")
                 android.util.Log.d(TAG, "OmSession.init: AdSessionContext created (contentUrl=$url)")
 
-                // Pick creative-type / impression-type / media-events-owner triple.
-                // Video uses the DEFINED_BY_JAVASCRIPT triplet per the IAB
-                // OMID Android #webview-video docs — native VIDEO + BEGIN_TO_RENDER
-                // trips an Android-only code path that produces a 1x1
-                // adView.geometry, failing OMID compliance.
-                val (omCreativeType, omImpressionType, mediaOwner) = if (creativeType == OmCreativeType.VIDEO) {
-                    Triple(
-                        creativeTypeClass.getField("DEFINED_BY_JAVASCRIPT").get(null)!!,
-                        impressionTypeClass.getField("DEFINED_BY_JAVASCRIPT").get(null)!!,
-                        ownerClass.getField("JAVASCRIPT").get(null)!!,
-                    )
-                } else {
-                    Triple(
-                        creativeTypeClass.getField("HTML_DISPLAY").get(null)!!,
-                        impressionTypeClass.getField("BEGIN_TO_RENDER").get(null)!!,
-                        ownerClass.getField("NONE").get(null)!!,
-                    )
-                }
+                // Pick creative-type / impression-type / impression-owner / media-events-owner.
+                // - Display: NATIVE impression owner. SDK fires loaded() + impressionOccurred()
+                //   via AdEvents so the JS verification script does NOT poll geometry and
+                //   does NOT emit a `notFound` geometryChange when the WebView detaches.
+                // - Video: DEFINED_BY_JAVASCRIPT triple per the IAB OMID Android
+                //   #webview-video docs — JS owns impression + media events.
+                val nativeOwner = ownerClass.getField("NATIVE").get(null)!!
                 val jsOwner = ownerClass.getField("JAVASCRIPT").get(null)!!
+                val noneOwner = ownerClass.getField("NONE").get(null)!!
+
+                val omCreativeType: Any
+                val omImpressionType: Any
+                val impressionOwner: Any
+                val mediaOwner: Any
+                if (creativeType == OmCreativeType.VIDEO) {
+                    omCreativeType = creativeTypeClass.getField("DEFINED_BY_JAVASCRIPT").get(null)!!
+                    omImpressionType = impressionTypeClass.getField("DEFINED_BY_JAVASCRIPT").get(null)!!
+                    impressionOwner = jsOwner
+                    mediaOwner = jsOwner
+                } else {
+                    omCreativeType = creativeTypeClass.getField("HTML_DISPLAY").get(null)!!
+                    omImpressionType = impressionTypeClass.getField("BEGIN_TO_RENDER").get(null)!!
+                    impressionOwner = nativeOwner
+                    mediaOwner = noneOwner
+                }
 
                 // AdSessionConfiguration.createAdSessionConfiguration(
-                //     creative, impression, owner, mediaOwner, isolateVerificationScripts=false
+                //     creative, impression, impressionOwner, mediaOwner, isolateVerificationScripts=false
                 // )
                 val createConfig = configClass.getMethod(
                     "createAdSessionConfiguration",
@@ -97,7 +106,14 @@ public class OmSession(
                     ownerClass,
                     Boolean::class.javaPrimitiveType,
                 )
-                val config = createConfig.invoke(null, omCreativeType, omImpressionType, jsOwner, mediaOwner, false)
+                val config = createConfig.invoke(
+                    null,
+                    omCreativeType,
+                    omImpressionType,
+                    impressionOwner,
+                    mediaOwner,
+                    false,
+                )
                 android.util.Log.d(TAG, "OmSession.init: AdSessionConfiguration created (creative=$creativeType)")
 
                 // AdSession.createAdSession(config, context)
@@ -111,6 +127,17 @@ public class OmSession(
                 android.util.Log.d(TAG, "OmSession.init: registerAdView(webView) done")
 
                 session = sess
+
+                // For NATIVE impression-owner sessions (display), create AdEvents so the
+                // SDK can fire loaded() + impressionOccurred() from Kotlin. For JS-owner
+                // sessions (video) AdEvents is still created but loaded/impression are
+                // owned by the in-iframe verification script and we don't call them.
+                if (creativeType != OmCreativeType.VIDEO) {
+                    val adEventsClass = Class.forName("com.iab.omid.library.kontextso.adsession.AdEvents")
+                    val createAdEvents = adEventsClass.getMethod("createAdEvents", sessionClass)
+                    adEvents = createAdEvents.invoke(null, sess)
+                    android.util.Log.d(TAG, "OmSession.init: AdEvents created (display, NATIVE owner)")
+                }
             } catch (e: ReflectiveOperationException) {
                 android.util.Log.w(TAG, "OM: session init failed", e)
                 session = null
@@ -133,6 +160,41 @@ public class OmSession(
             android.util.Log.d(TAG, "OmSession.start: session.start() invoked successfully")
         } catch (e: ReflectiveOperationException) {
             android.util.Log.w(TAG, "OM: session start failed", e)
+        }
+    }
+
+    /**
+     * Fires the OMID `loaded` event from native code. Only valid for sessions
+     * with `Owner.NATIVE` as impressionOwner (display). For JS-owner sessions
+     * (video) the verification script emits this — calling here is a no-op.
+     * Must be called after [start].
+     */
+    public fun loaded() {
+        if (loadedFired) return
+        val ev = adEvents ?: return
+        try {
+            ev.javaClass.getMethod("loaded").invoke(ev)
+            loadedFired = true
+            android.util.Log.d(TAG, "OmSession.loaded: fired")
+        } catch (e: ReflectiveOperationException) {
+            android.util.Log.w(TAG, "OM: AdEvents.loaded failed", e)
+        }
+    }
+
+    /**
+     * Fires the OMID `impressionOccurred` event from native code. Only valid
+     * for sessions with `Owner.NATIVE` as impressionOwner (display). Must be
+     * called after [loaded] and after the ad is actually rendered.
+     */
+    public fun impressionOccurred() {
+        if (impressionFired) return
+        val ev = adEvents ?: return
+        try {
+            ev.javaClass.getMethod("impressionOccurred").invoke(ev)
+            impressionFired = true
+            android.util.Log.d(TAG, "OmSession.impressionOccurred: fired")
+        } catch (e: ReflectiveOperationException) {
+            android.util.Log.w(TAG, "OM: AdEvents.impressionOccurred failed", e)
         }
     }
 
@@ -177,6 +239,7 @@ public class OmSession(
             android.util.Log.w("Kontext SDK", "OM: session finish failed", e)
         }
         session = null
+        adEvents = null
 
         // Hold the WebView alive for 1s so verification scripts can flush.
         val heldWebView = webView
