@@ -43,12 +43,13 @@ public object InAppBrowserManager {
                 Result.failure(IllegalStateException("No Activity context to attach Custom Tab"))
 
             else -> {
-                val customTabsIntent = CustomTabsIntent.Builder().build()
-                customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                customTabsIntent.launchUrl(context, uri)
-                isCustomTabOpen = true
-                startAutoDismissListener(context.application)
-                Result.success(Unit)
+                runCatching {
+                    val customTabsIntent = CustomTabsIntent.Builder().build()
+                    customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    customTabsIntent.launchUrl(context, uri)
+                    isCustomTabOpen = true
+                    startAutoDismissListener(context.application)
+                }
             }
         }
     }
