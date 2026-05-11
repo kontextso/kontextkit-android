@@ -199,25 +199,23 @@ public class OmSession(
     }
 
     /**
-     * Terminates the OMID session natively and **holds the WebView alive
-     * for 1 second** so the in-iframe verification scripts can handle the
-     * `sessionFinish` event before the host tears the WebView down. Per
-     * `OMIDAdSession.h`:
+     * Terminates the OMID session natively and holds the WebView alive
+     * for 1 second so the in-iframe verification scripts can handle the
+     * sessionFinish event before the host tears the WebView down.
      *
-     * > "Note that ending an OMID ad session sends a message to the
-     * > verification scripts running inside the webview supplied by the
-     * > integration. So that the verification scripts have enough time
-     * > to handle the `sessionFinish` event, the integration must
-     * > maintain a strong reference to the webview for at least 1.0
-     * > seconds after ending the session."
+     * Per the IAB OMIDAdSession spec: ending an OMID ad session sends a
+     * message to the verification scripts running inside the webview;
+     * the integration must maintain a strong reference to the webview
+     * for at least 1.0 seconds after ending the session so the scripts
+     * have time to handle that event.
      *
      * The hold is implemented as a delayed Handler post that captures
-     * the WebView reference. Caller can drop their `OmSession` reference
+     * the WebView reference. Caller can drop their OmSession reference
      * (and any other strong WebView reference) immediately after this
      * returns — the WebView stays alive until the delayed action fires.
      *
-     * Pair with `retire()` — retire first so JS can flush, then finish
-     * to dispatch the session-finish event.
+     * Pair with retire — retire first so JS can flush, then finish to
+     * dispatch the session-finish event.
      */
     public fun finish() {
         if (session == null) return

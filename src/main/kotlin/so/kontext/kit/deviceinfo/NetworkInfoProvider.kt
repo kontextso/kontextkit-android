@@ -105,7 +105,12 @@ public object NetworkInfoProvider {
      * threshold.
      */
     @SuppressLint("MissingPermission")
+    @Suppress("DEPRECATION")
     private fun cellularDetail(telephonyManager: TelephonyManager?): String? = try {
+        // `NETWORK_TYPE_IDEN` is deprecated (legacy Nextel/Boost push-to-talk
+        // networks, defunct since ~2013) but the constant value can still be
+        // returned by `dataNetworkType` on old devices, so we still classify
+        // it as 2G rather than dropping the branch.
         when (telephonyManager?.dataNetworkType) {
             TelephonyManager.NETWORK_TYPE_GPRS -> "gprs"
             TelephonyManager.NETWORK_TYPE_EDGE -> "edge"
