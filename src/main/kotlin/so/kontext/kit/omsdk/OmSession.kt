@@ -47,7 +47,8 @@ public class OmSession(
                 val noneOwner = ownerClass.getField("NONE").get(null)!!
 
                 if (creativeType == OmCreativeType.VIDEO) {
-                    omCreativeType = creativeTypeClass.getField("VIDEO").get(null)!!
+                    omCreativeType = creativeTypeClass.getField("DEFINED_BY_JAVASCRIPT").get(null)!!
+                    omImpressionType = impressionTypeClass.getField("DEFINED_BY_JAVASCRIPT").get(null)!!
                     mediaEventsOwner = jsOwner
                 } else {
                     omCreativeType = creativeTypeClass.getField("HTML_DISPLAY").get(null)!!
