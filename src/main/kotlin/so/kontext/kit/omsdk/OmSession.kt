@@ -56,7 +56,6 @@ public class OmSession(
                 val creativeTypeClass = Class.forName("com.iab.omid.library.kontextso.adsession.CreativeType")
                 val impressionTypeClass = Class.forName("com.iab.omid.library.kontextso.adsession.ImpressionType")
                 val ownerClass = Class.forName("com.iab.omid.library.kontextso.adsession.Owner")
-                android.util.Log.d(TAG, "OmSession.init: all 7 OMID classes loaded")
 
                 // AdSessionContext.createHtmlAdSessionContext(partner, webView, contentUrl, customReferenceData)
                 val createContext = contextClass.getMethod(
@@ -67,7 +66,6 @@ public class OmSession(
                     String::class.java,
                 )
                 val context = createContext.invoke(null, partner, webView, url, "")
-                android.util.Log.d(TAG, "OmSession.init: AdSessionContext created (contentUrl=$url)")
 
                 // Pick creative-type / impression-type / impression-owner / media-events-owner.
                 // - Display: NATIVE impression owner. SDK fires loaded() + impressionOccurred()
@@ -114,17 +112,14 @@ public class OmSession(
                     mediaOwner,
                     false,
                 )
-                android.util.Log.d(TAG, "OmSession.init: AdSessionConfiguration created (creative=$creativeType)")
 
                 // AdSession.createAdSession(config, context)
                 val createSession = sessionClass.getMethod("createAdSession", configClass, contextClass)
                 val sess = createSession.invoke(null, config, context)
-                android.util.Log.d(TAG, "OmSession.init: AdSession.createAdSession returned ${sess?.javaClass?.name}")
 
                 // session.registerAdView(webView)
                 val registerAdView = sessionClass.getMethod("registerAdView", View::class.java)
                 registerAdView.invoke(sess, webView)
-                android.util.Log.d(TAG, "OmSession.init: registerAdView(webView) done")
 
                 session = sess
 
@@ -136,7 +131,6 @@ public class OmSession(
                     val adEventsClass = Class.forName("com.iab.omid.library.kontextso.adsession.AdEvents")
                     val createAdEvents = adEventsClass.getMethod("createAdEvents", sessionClass)
                     adEvents = createAdEvents.invoke(null, sess)
-                    android.util.Log.d(TAG, "OmSession.init: AdEvents created (display, NATIVE owner)")
                 }
             } catch (e: ReflectiveOperationException) {
                 android.util.Log.w(TAG, "OM: session init failed", e)
@@ -146,10 +140,7 @@ public class OmSession(
     }
 
     public fun start() {
-        if (started) {
-            android.util.Log.d(TAG, "OmSession.start: already started")
-            return
-        }
+        if (started) return
         if (session == null) {
             android.util.Log.w(TAG, "OmSession.start: session is null")
             return
@@ -157,7 +148,6 @@ public class OmSession(
         try {
             session!!.javaClass.getMethod("start").invoke(session)
             started = true
-            android.util.Log.d(TAG, "OmSession.start: session.start() invoked successfully")
         } catch (e: ReflectiveOperationException) {
             android.util.Log.w(TAG, "OM: session start failed", e)
         }
@@ -175,7 +165,6 @@ public class OmSession(
         try {
             ev.javaClass.getMethod("loaded").invoke(ev)
             loadedFired = true
-            android.util.Log.d(TAG, "OmSession.loaded: fired")
         } catch (e: ReflectiveOperationException) {
             android.util.Log.w(TAG, "OM: AdEvents.loaded failed", e)
         }
@@ -192,7 +181,6 @@ public class OmSession(
         try {
             ev.javaClass.getMethod("impressionOccurred").invoke(ev)
             impressionFired = true
-            android.util.Log.d(TAG, "OmSession.impressionOccurred: fired")
         } catch (e: ReflectiveOperationException) {
             android.util.Log.w(TAG, "OM: AdEvents.impressionOccurred failed", e)
         }

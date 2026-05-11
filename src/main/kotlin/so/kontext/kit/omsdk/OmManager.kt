@@ -5,6 +5,7 @@ import android.webkit.WebView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import so.kontext.kit.R
+import kotlin.coroutines.resume
 
 /**
  * Public manager-protocol for OMID session creation. Exposed so consumer
@@ -48,30 +49,16 @@ public class OmManager(partner: OmPartner) : OmManaging {
      * the host application.
      */
     public override fun activate(context: Context): Boolean {
-        if (activated) {
-            android.util.Log.d(TAG, "activate: already activated, skipping")
-            return true
-        }
+        if (activated) return true
 
         return try {
             val omidClass = Class.forName("com.iab.omid.library.kontextso.Omid")
-            android.util.Log.d(TAG, "activate: Omid class loaded")
-
             val activateMethod = omidClass.getMethod("activate", Context::class.java)
             activateMethod.invoke(null, context)
-            android.util.Log.d(TAG, "activate: Omid.activate(context) invoked")
-
             val isActiveMethod = omidClass.getMethod("isActive")
             activated = isActiveMethod.invoke(null) as Boolean
-            android.util.Log.d(TAG, "activate: Omid.isActive() = $activated")
-
             if (activated) {
                 cachedPartner = createOmidPartner()
-                android.util.Log.d(
-                    TAG,
-                    "activate: partner cached = ${cachedPartner != null} " +
-                        "(${partner.name} / ${partner.version})",
-                )
             }
             activated
         } catch (e: ReflectiveOperationException) {
@@ -95,12 +82,6 @@ public class OmManager(partner: OmPartner) : OmManaging {
         url: String?,
         creativeType: OmCreativeType,
     ): OmSession? {
-        android.util.Log.d(
-            TAG,
-            "createSession: activated=$activated " +
-                "partnerCached=${cachedPartner != null} " +
-                "creativeType=$creativeType url=$url",
-        )
         val partnerRef = cachedPartner
         if (!activated || partnerRef == null) {
             android.util.Log.w(
@@ -112,7 +93,6 @@ public class OmManager(partner: OmPartner) : OmManaging {
         }
 
         val session = OmSession(webView, url, creativeType, partnerRef)
-        android.util.Log.d(TAG, "createSession: OmSession instantiated, isValid=${session.isValid}")
         if (session.isValid) {
             // For video, wait until the inner `<video>` element has loaded
             // metadata (`readyState >= 1`) so it has non-zero intrinsic
@@ -129,17 +109,8 @@ public class OmManager(partner: OmPartner) : OmManaging {
             // Matches v3 sdk-kotlin + iOS sdk-swift.
             delay(GEOMETRY_STABILITY_DELAY_MS)
             session.start()
-            android.util.Log.d(
-                TAG,
-                "createSession: session.start() returned " +
-                    "(session.started should now be true)",
-            )
         } else {
-            android.util.Log.w(
-                TAG,
-                "createSession: session.isValid=false — " +
-                    "reflection in OmSession.init failed (check earlier Log.w)",
-            )
+            android.util.Log.w(TAG, "createSession: session.isValid=false")
         }
         return session.takeIf { it.isValid }
     }
@@ -159,11 +130,7 @@ public class OmManager(partner: OmPartner) : OmManaging {
     private suspend fun waitForVideoMetadata(webView: WebView) {
         val deadline = System.currentTimeMillis() + VIDEO_METADATA_POLL_MAX_MS
         while (System.currentTimeMillis() < deadline) {
-            val ready = pollVideoReady(webView)
-            if (ready) {
-                android.util.Log.d(TAG, "waitForVideoMetadata: video ready")
-                return
-            }
+            if (pollVideoReady(webView)) return
             delay(VIDEO_METADATA_POLL_INTERVAL_MS)
         }
         android.util.Log.w(
@@ -176,11 +143,11 @@ public class OmManager(partner: OmPartner) : OmManaging {
         suspendCancellableCoroutine { cont ->
             try {
                 webView.evaluateJavascript(VIDEO_READY_PROBE) { result ->
-                    if (cont.isActive) cont.resume(result == "true") {}
+                    if (cont.isActive) cont.resume(result == "true")
                 }
             } catch (e: IllegalStateException) {
                 android.util.Log.w(TAG, "pollVideoReady: evaluateJavascript failed", e)
-                if (cont.isActive) cont.resume(false) {}
+                if (cont.isActive) cont.resume(false)
             }
         }
 
@@ -197,13 +164,7 @@ public class OmManager(partner: OmPartner) : OmManaging {
                 String::class.java,
                 String::class.java,
             )
-            val result = createPartner.invoke(null, partner.name, partner.version)
-            android.util.Log.d(
-                TAG,
-                "createOmidPartner: Partner.createPartner(" +
-                    "${partner.name}, ${partner.version}) → $result",
-            )
-            result
+            createPartner.invoke(null, partner.name, partner.version)
         } catch (e: ReflectiveOperationException) {
             android.util.Log.w(TAG, "OM: partner creation failed", e)
             null
