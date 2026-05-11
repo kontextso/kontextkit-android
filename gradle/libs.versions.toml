@@ -14,10 +14,10 @@
 # `./gradlew publish -PkitVersion=1.1.0` so CI can cut releases
 # without bumping this file. Consumed by build.gradle.kts as the
 # fallback when the `kitVersion` Gradle property is absent.
-kit = "0.0.1"
+kit = "0.0.2"
 
 # ---- Build tooling ----
-agp = "8.2.0"                       # Android Gradle Plugin
+agp = "8.6.1"                       # Android Gradle Plugin
 kotlin = "1.9.22"                   # Kotlin compiler version
 
 # ---- Code-quality plugins ----
