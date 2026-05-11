@@ -17,7 +17,7 @@
 kit = "0.0.1"
 
 # ---- Build tooling ----
-agp = "8.2.0"                       # Android Gradle Plugin
+agp = "8.6.1"                       # Android Gradle Plugin
 kotlin = "1.9.22"                   # Kotlin compiler version
 
 # ---- Code-quality plugins ----
