@@ -10,6 +10,7 @@ package so.kontext.kit.ui
 import android.app.Activity
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -143,5 +144,117 @@ class InAppBrowserManagerTest {
             reject = { _, _, _ -> fail("Should not reject for a valid URL") },
         )
         assertEquals(true, resolvedValue)
+    }
+
+    // Auto-dismiss state machine -----------------------------------------------
+    //
+    // After a tab opens, the manager registers an ActivityLifecycleCallback
+    // that auto-dismisses (i.e. clears `isCustomTabOpen` and unregisters
+    // itself) when the user returns from the tab. The state machine has a
+    // subtle quirk: the **first** onActivityResumed after launch is the
+    // host Activity's own resume (because the launch flow itself resumes
+    // it briefly before the Custom Tab takes over); we have to skip that
+    // one and act on the **second** resume (the real return).
+
+    @Test
+    fun `successful open flips isCustomTabOpen to true`() {
+        resetState()
+        val result = InAppBrowserManager.open(buildActivity(), "https://example.com")
+        assertTrue(result.isSuccess)
+        assertTrue(
+            "open() must mark the manager as having a live tab",
+            readIsCustomTabOpen(),
+        )
+    }
+
+    @Test
+    fun `auto-dismiss skips the first resume and acts on the second`() {
+        resetState()
+        val activity = buildActivity()
+        val application = activity.application
+        InAppBrowserManager.open(activity, "https://example.com")
+
+        // First resume — the host activity's own resume during the launch
+        // flow. The listener short-circuits via `skipFirstResume` and
+        // leaves the state untouched.
+        fireResumed(application, activity)
+        assertTrue(
+            "First resume is the host activity's own — must be skipped",
+            readIsCustomTabOpen(),
+        )
+
+        // Second resume — the real return from the Custom Tab. The
+        // listener now flips `isCustomTabOpen` to false and unregisters
+        // itself (verified separately by `state survives a no-op …`).
+        fireResumed(application, activity)
+        assertFalse(
+            "Second resume must trigger auto-dismiss",
+            readIsCustomTabOpen(),
+        )
+    }
+
+    @Test
+    fun `listener unregisters after auto-dismiss so later resumes do nothing`() {
+        resetState()
+        val activity = buildActivity()
+        val application = activity.application
+        InAppBrowserManager.open(activity, "https://example.com")
+
+        // First skip + second dismiss.
+        fireResumed(application, activity)
+        fireResumed(application, activity)
+        assertFalse(readIsCustomTabOpen())
+
+        // From here on the listener should be unregistered. Simulate a
+        // later open() that flips the flag back to true — if the original
+        // listener were still alive it would (on its third resume) trip
+        // and clear the flag again on the very next activity resume,
+        // breaking the new tab's auto-dismiss.
+        setIsCustomTabOpen(true)
+        fireResumed(application, activity)
+        assertTrue(
+            "After dismiss the listener must be unregistered — a stale " +
+                "listener would clear the flag on the next resume regardless of state",
+            readIsCustomTabOpen(),
+        )
+    }
+
+    // ---- helpers --------------------------------------------------------
+
+    private val isCustomTabOpenField =
+        InAppBrowserManager::class.java
+            .getDeclaredField("isCustomTabOpen")
+            .apply { isAccessible = true }
+
+    private fun readIsCustomTabOpen(): Boolean =
+        isCustomTabOpenField.getBoolean(InAppBrowserManager)
+
+    private fun setIsCustomTabOpen(value: Boolean) {
+        isCustomTabOpenField.setBoolean(InAppBrowserManager, value)
+    }
+
+    /** `InAppBrowserManager` is an object — reset its singleton state per test. */
+    private fun resetState() {
+        setIsCustomTabOpen(false)
+    }
+
+    /**
+     * Fires `onActivityResumed` on every callback currently registered
+     * with the Application. The manager registers an anonymous inner
+     * class via `application.registerActivityLifecycleCallbacks(...)` —
+     * we mirror what the OS's ActivityThread does at runtime by reading
+     * the Application's private `mActivityLifecycleCallbacks` list and
+     * dispatching to each. Snapshot the list first so a callback that
+     * unregisters itself during dispatch can't ConcurrentModification us.
+     */
+    private fun fireResumed(application: android.app.Application, activity: Activity) {
+        val field = android.app.Application::class.java
+            .getDeclaredField("mActivityLifecycleCallbacks")
+            .apply { isAccessible = true }
+
+        @Suppress("UNCHECKED_CAST")
+        val callbacks = field.get(application)
+            as java.util.ArrayList<android.app.Application.ActivityLifecycleCallbacks>
+        callbacks.toList().forEach { it.onActivityResumed(activity) }
     }
 }

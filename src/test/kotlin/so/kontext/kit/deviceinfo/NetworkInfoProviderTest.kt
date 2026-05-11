@@ -100,4 +100,87 @@ class NetworkInfoProviderTest {
             )
         }
     }
+
+    // ---------------------------------------------------------------------------
+    // cellularDetail branches — pin the full mapping from TelephonyManager
+    // dataNetworkType constants to the server's `networkSchema` short names.
+    // Each `when` branch is the only place a given network type gets its label;
+    // a typo or accidental re-mapping would silently mis-classify traffic on the
+    // wire without these tests.
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun `cellularDetail maps GPRS to gprs`() {
+        assertEquals("gprs", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_GPRS))
+    }
+
+    @Test
+    fun `cellularDetail maps EDGE to edge`() {
+        assertEquals("edge", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_EDGE))
+    }
+
+    @Test
+    fun `cellularDetail maps CDMA family to 2g`() {
+        assertEquals("2g", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_CDMA))
+        assertEquals("2g", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_1xRTT))
+    }
+
+    @Suppress("DEPRECATION")
+    @Test
+    fun `cellularDetail maps IDEN to 2g`() {
+        // IDEN is deprecated (legacy Nextel/Boost push-to-talk, defunct
+        // since ~2013) but the constant value can still be returned by
+        // `dataNetworkType` on old devices.
+        assertEquals("2g", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_IDEN))
+    }
+
+    @Test
+    fun `cellularDetail maps UMTS and EVDO family to 3g`() {
+        assertEquals("3g", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_UMTS))
+        assertEquals("3g", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_EVDO_0))
+        assertEquals("3g", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_EVDO_A))
+        assertEquals("3g", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_EVDO_B))
+    }
+
+    @Test
+    fun `cellularDetail maps HSPA family and EHRPD to hspa`() {
+        assertEquals("hspa", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_HSDPA))
+        assertEquals("hspa", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_HSUPA))
+        assertEquals("hspa", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_HSPA))
+        assertEquals("hspa", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_HSPAP))
+        assertEquals("hspa", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_EHRPD))
+    }
+
+    @Test
+    fun `cellularDetail maps LTE to lte`() {
+        assertEquals("lte", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_LTE))
+    }
+
+    @Test
+    fun `cellularDetail maps NR to 5g`() {
+        assertEquals("5g", invokeCellularDetail(TelephonyManager.NETWORK_TYPE_NR))
+    }
+
+    @Test
+    fun `cellularDetail returns null for UNKNOWN and unmapped types`() {
+        // `NETWORK_TYPE_UNKNOWN` (= 0) and any future constant we haven't
+        // mapped should decay to null rather than emit a misleading label.
+        assertNull(invokeCellularDetail(TelephonyManager.NETWORK_TYPE_UNKNOWN))
+    }
+
+    /**
+     * `NetworkInfoProvider.cellularDetail()` is `private` so we invoke it
+     * via reflection. The dependency on the TelephonyManager `dataNetworkType`
+     * field — the only thing that varies between branches — is set via
+     * Robolectric's `ShadowTelephonyManager` instead of mocking the manager,
+     * keeping the test true to the platform path.
+     */
+    private fun invokeCellularDetail(dataNetworkType: Int): String? {
+        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        shadowOf(tm).setDataNetworkType(dataNetworkType)
+        val method = NetworkInfoProvider::class.java
+            .getDeclaredMethod("cellularDetail", TelephonyManager::class.java)
+            .apply { isAccessible = true }
+        return method.invoke(NetworkInfoProvider, tm) as String?
+    }
 }
