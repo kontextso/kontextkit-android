@@ -1,10 +1,10 @@
-# KontextKit/android — local publishing credentials template.
+# KontextKit Android — local publishing credentials template.
 #
 # Do NOT commit a populated copy of this file. Either:
 #   - Create ~/.gradle/gradle.properties with these keys (preferred for
 #     local publishing), OR
 #   - Pass each key on the command line via -P (used by CI; see
-#     .github/workflows/kontextkit-android-publish.yml).
+#     .github/workflows/publish.yml).
 #
 # Sonatype / Maven Central account
 # https://central.sonatype.com → User Token → "Generate User Token"
@@ -19,6 +19,6 @@ signingInMemoryKeyPassword=
 # Optional: if you have multiple keys, the 8-char short key id.
 # signingInMemoryKeyId=
 
-# Override the default version (1.0.0-SNAPSHOT in build.gradle.kts).
+# Override the default version (kit = ... in gradle/libs.versions.toml).
 # CI sets this from the git tag; locally pass `-PkitVersion=X.Y.Z`.
-# kitVersion=1.0.0-SNAPSHOT
+# kitVersion=0.0.1
