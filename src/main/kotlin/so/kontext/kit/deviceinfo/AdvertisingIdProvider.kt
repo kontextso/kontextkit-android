@@ -82,12 +82,8 @@ public object AdvertisingIdProvider {
      * Same off-main-thread requirement as [getAdvertisingId] — Play Services
      * IPC. Callers wrap in `withContext(Dispatchers.IO)`.
      */
-    public fun resolveId(context: Context?, manualAdvertisingId: String? = null): String? {
-        val normalised = normalize(manualAdvertisingId)
-        if (normalised != null) return normalised
-        if (context == null) return null
-        return getAdvertisingId(context)
-    }
+    public fun resolveId(context: Context?, manualAdvertisingId: String? = null): String? =
+        normalize(manualAdvertisingId) ?: context?.let { getAdvertisingId(it) }
 
     /**
      * Calls Play Services directly. Failures (Play Services unavailable,
@@ -125,8 +121,7 @@ public object AdvertisingIdProvider {
      * tests in the same module can verify the rules directly.
      */
     internal fun normalize(id: String?): String? {
-        if (id.isNullOrBlank()) return null
-        if (id.lowercase() == ZERO_UUID) return null
+        if (id.isNullOrBlank() || id.lowercase() == ZERO_UUID) return null
         return id
     }
 }
