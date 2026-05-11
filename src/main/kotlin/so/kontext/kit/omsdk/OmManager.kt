@@ -47,22 +47,30 @@ public class OmManager(partner: OmPartner) : OmManaging {
      * the host application.
      */
     public override fun activate(context: Context): Boolean {
-        if (activated) return true
+        if (activated) {
+            android.util.Log.d(TAG, "activate: already activated, skipping")
+            return true
+        }
 
         return try {
             val omidClass = Class.forName("com.iab.omid.library.kontextso.Omid")
+            android.util.Log.d(TAG, "activate: Omid class loaded")
+
             val activateMethod = omidClass.getMethod("activate", Context::class.java)
             activateMethod.invoke(null, context)
+            android.util.Log.d(TAG, "activate: Omid.activate(context) invoked")
 
             val isActiveMethod = omidClass.getMethod("isActive")
             activated = isActiveMethod.invoke(null) as Boolean
+            android.util.Log.d(TAG, "activate: Omid.isActive() = $activated")
 
             if (activated) {
                 cachedPartner = createOmidPartner()
+                android.util.Log.d(TAG, "activate: partner cached = ${cachedPartner != null} (${partner.name} / ${partner.version})")
             }
             activated
         } catch (e: ReflectiveOperationException) {
-            android.util.Log.w("Kontext SDK", "OM: activation failed (OMSDK not available)", e)
+            android.util.Log.w(TAG, "OM: activation failed (OMSDK not available)", e)
             false
         }
     }
@@ -82,17 +90,29 @@ public class OmManager(partner: OmPartner) : OmManaging {
         url: String?,
         creativeType: OmCreativeType,
     ): OmSession? {
-        if (!activated || cachedPartner == null) return null
-
-        delay(GEOMETRY_STABILITY_DELAY_MS)
+        android.util.Log.d(TAG, "createSession: activated=$activated partnerCached=${cachedPartner != null} creativeType=$creativeType url=$url")
+        if (!activated || cachedPartner == null) {
+            android.util.Log.w(TAG, "createSession: cannot create — activated=$activated partner=${cachedPartner != null}")
+            return null
+        }
 
         val session = OmSession(webView, url, creativeType, cachedPartner)
-        return if (session.isValid) {
-            session.start()
-            session
-        } else {
-            null
+        android.util.Log.d(TAG, "createSession: OmSession instantiated, isValid=${session.isValid}")
+        if (!session.isValid) {
+            android.util.Log.w(TAG, "createSession: session.isValid=false — reflection in OmSession.init failed (check earlier Log.w)")
+            return null
         }
+
+        // 50 ms between registerAdView (done inside OmSession.init) and
+        // start() — matches v3 sdk-kotlin + iOS sdk-swift. Lets the
+        // WebView geometry stabilise so the OMID JS layer's `loaded` and
+        // `impression` events fire against a stable adView.geometry,
+        // not a 1x1 placeholder.
+        delay(GEOMETRY_STABILITY_DELAY_MS)
+
+        session.start()
+        android.util.Log.d(TAG, "createSession: session.start() returned (session.started should now be true)")
+        return session
     }
 
     /**
@@ -108,18 +128,24 @@ public class OmManager(partner: OmPartner) : OmManaging {
                 String::class.java,
                 String::class.java,
             )
-            createPartner.invoke(null, partner.name, partner.version)
+            val result = createPartner.invoke(null, partner.name, partner.version)
+            android.util.Log.d(TAG, "createOmidPartner: Partner.createPartner(${partner.name}, ${partner.version}) → $result")
+            result
         } catch (e: ReflectiveOperationException) {
-            android.util.Log.w("Kontext SDK", "OM: partner creation failed", e)
+            android.util.Log.w(TAG, "OM: partner creation failed", e)
             null
         }
     }
 
     public companion object {
+        private const val TAG = "KontextKit/OM"
+
         /**
-         * Pause between OmSession init and `start()` — gives WebView geometry
-         * a chance to settle so the OMID `loaded` event fires with stable
-         * bounds. Matches iOS's 50 ms.
+         * Pause between OmSession init (which calls `registerAdView`) and
+         * `start()` — gives WebView geometry a chance to settle so the
+         * OMID `loaded` and `impression` JS events fire against the
+         * stable adView.geometry, not a 1x1 placeholder. Matches v3
+         * sdk-kotlin + iOS sdk-swift.
          */
         private const val GEOMETRY_STABILITY_DELAY_MS = 50L
 
