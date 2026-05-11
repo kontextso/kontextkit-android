@@ -4,7 +4,10 @@ import android.app.UiModeManager
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
+import android.os.Environment
 import android.os.SystemClock
+import android.os.storage.StorageManager
+import android.os.storage.StorageVolume
 
 /**
  * Reports device manufacturer + model + form-factor + boot time +
@@ -61,15 +64,20 @@ public object HardwareInfoProvider {
     }
 
     /**
-     * `getExternalFilesDirs(null)` returns one entry per app-visible
-     * external storage volume — index 0 is always primary emulated
-     * internal storage; later entries are removable SD cards (or null
-     * when a slot exists but no card is inserted). Filtering nulls and
-     * checking for size > 1 reliably detects a mounted removable card
-     * without needing any runtime permission.
+     * Checks StorageManager's volume metadata instead of counting
+     * `getExternalFilesDirs(null)` entries, because secondary app-visible
+     * external volumes are not necessarily removable SD cards.
      */
-    private fun sdCardAvailable(context: Context): Boolean =
-        context.getExternalFilesDirs(null).filterNotNull().size > 1
+    private fun sdCardAvailable(context: Context): Boolean {
+        val storageManager = context.getSystemService(StorageManager::class.java) ?: return false
+        return storageManager.storageVolumes.any(::isMountedRemovableVolume)
+    }
+
+    private fun isMountedRemovableVolume(volume: StorageVolume): Boolean {
+        val state = runCatching { volume.state }.getOrNull()
+        return volume.isRemovable &&
+            (state == Environment.MEDIA_MOUNTED || state == Environment.MEDIA_MOUNTED_READ_ONLY)
+    }
 
     /** Dictionary representation for bridge layers (RN, Flutter). Mirrors iOS. */
     public fun collectAsDict(context: Context): Map<String, Any> {
