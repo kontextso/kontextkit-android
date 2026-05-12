@@ -37,19 +37,7 @@ class NetworkInfoProviderTest {
     fun `collect returns detail as valid string or null`() {
         val info = NetworkInfoProvider.collect(context)
         if (info.detail != null) {
-            assert(
-                info.detail in listOf(
-                    "gprs",
-                    "edge",
-                    "2g",
-                    "3g",
-                    "hspa",
-                    "lte",
-                    "5g",
-                    "other",
-                    "cellular",
-                ),
-            )
+            assert(info.detail in listOf("gprs", "edge", "2g", "3g", "hspa", "lte", "5g"))
         }
     }
 
@@ -60,13 +48,17 @@ class NetworkInfoProviderTest {
             "3g",
             NetworkInfoProvider.mapCellularDetail(TelephonyManager.NETWORK_TYPE_TD_SCDMA),
         )
-        assertEquals("other", NetworkInfoProvider.mapCellularDetail(TelephonyManager.NETWORK_TYPE_IWLAN))
         assertEquals("lte", NetworkInfoProvider.mapCellularDetail(19))
     }
 
     @Test
-    fun `mapCellularDetail returns coarse cellular fallback for unknown cellular type`() {
-        assertEquals("cellular", NetworkInfoProvider.mapCellularDetail(Int.MAX_VALUE))
+    fun `mapCellularDetail returns null for IWLAN and unknown cellular types`() {
+        // IWLAN means the IMS bearer is tunnelling through Wi-Fi, not a
+        // cellular generation. Lumping it into the cellular-detail field
+        // is a stretch — emit `null` and let the server collapse it (and
+        // any unrecognised future constant) to OpenRTB CELLULAR_UNKNOWN.
+        assertNull(NetworkInfoProvider.mapCellularDetail(TelephonyManager.NETWORK_TYPE_IWLAN))
+        assertNull(NetworkInfoProvider.mapCellularDetail(Int.MAX_VALUE))
     }
 
     @Test

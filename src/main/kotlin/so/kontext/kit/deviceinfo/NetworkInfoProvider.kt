@@ -142,8 +142,14 @@ public object NetworkInfoProvider {
         NETWORK_TYPE_LTE_CA,
         -> "lte"
         TelephonyManager.NETWORK_TYPE_NR -> "5g"
-        TelephonyManager.NETWORK_TYPE_IWLAN -> "other"
-        else -> "cellular"
+        // `NETWORK_TYPE_IWLAN` and any unrecognised cellular constant
+        // fall through to `null`. IWLAN signals that the device's IMS
+        // bearer is tunnelling through Wi-Fi (VoWiFi); the actual data
+        // transport isn't a cellular generation, so naming it inside a
+        // cellular-detail field is a stretch. The server collapses both
+        // `null` and unknown strings to OpenRTB `CELLULAR_UNKNOWN`
+        // downstream, so emitting `null` is the honest answer.
+        else -> null
     }
 
     private const val NETWORK_TYPE_LTE_CA = 19
