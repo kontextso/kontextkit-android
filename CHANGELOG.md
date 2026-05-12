@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.3
+
+Bug fixes and test coverage.
+
+* `HardwareInfoProvider.sdCardAvailable`: replace the `getExternalFilesDirs(null).size > 1` heuristic (false-positives on devices with secondary emulated volumes) with `StorageManager.storageVolumes` filtered on `isRemovable && state in [MEDIA_MOUNTED, MEDIA_MOUNTED_READ_ONLY]`.
+* `NetworkInfoProvider.cellularDetail`: cover additional radio types — `NETWORK_TYPE_GSM`, `NETWORK_TYPE_TD_SCDMA`, `NETWORK_TYPE_LTE_CA` (numeric constant 19). Extracted the mapping into `internal fun mapCellularDetail(...)` for direct testing. Unrecognised types (including `NETWORK_TYPE_IWLAN`) keep emitting `null`; the server collapses both `null` and unknown strings to OpenRTB `CELLULAR_UNKNOWN` downstream.
+* `InAppBrowserManager.open`: wrap the Custom Tabs launch in `runCatching` so `ActivityNotFoundException` from an absent browser flows through the documented `Result<Unit>` contract instead of escaping.
+* Dokka: rewrote `OmSession.finish()` KDoc so `javaDocReleaseGeneration` no longer raises `Cannot cast ContentGroup` on the multi-line blockquote.
+* `NetworkInfoProvider.cellularDetail`: silence the `NETWORK_TYPE_IDEN` deprecation warning with a function-scope `@Suppress("DEPRECATION")` (the constant value is still returned by `dataNetworkType` on old devices).
+* Test coverage: +40 tests across `OmSession`, `OmManager` polling, `NetworkInfoProvider`, `BatteryInfoProvider`, `TCFDataProvider`, `InAppBrowserManager` auto-dismiss state machine, plus the new `OmPartner` data class.
+
 ## 0.0.2
 
 OMID lifecycle fixes — `OmManager` / `OmSession` were not producing IAB-compliant validator output. Required for consuming SDKs targeting IAB OM SDK certification.
