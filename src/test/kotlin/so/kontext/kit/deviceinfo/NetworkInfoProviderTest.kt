@@ -37,8 +37,36 @@ class NetworkInfoProviderTest {
     fun `collect returns detail as valid string or null`() {
         val info = NetworkInfoProvider.collect(context)
         if (info.detail != null) {
-            assert(info.detail in listOf("gprs", "edge", "2g", "3g", "hspa", "lte", "5g"))
+            assert(
+                info.detail in listOf(
+                    "gprs",
+                    "edge",
+                    "2g",
+                    "3g",
+                    "hspa",
+                    "lte",
+                    "5g",
+                    "other",
+                    "cellular",
+                ),
+            )
         }
+    }
+
+    @Test
+    fun `mapCellularDetail maps additional Android radio types`() {
+        assertEquals("2g", NetworkInfoProvider.mapCellularDetail(TelephonyManager.NETWORK_TYPE_GSM))
+        assertEquals(
+            "3g",
+            NetworkInfoProvider.mapCellularDetail(TelephonyManager.NETWORK_TYPE_TD_SCDMA),
+        )
+        assertEquals("other", NetworkInfoProvider.mapCellularDetail(TelephonyManager.NETWORK_TYPE_IWLAN))
+        assertEquals("lte", NetworkInfoProvider.mapCellularDetail(19))
+    }
+
+    @Test
+    fun `mapCellularDetail returns coarse cellular fallback for unknown cellular type`() {
+        assertEquals("cellular", NetworkInfoProvider.mapCellularDetail(Int.MAX_VALUE))
     }
 
     @Test

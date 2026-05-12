@@ -107,29 +107,44 @@ public object NetworkInfoProvider {
     @SuppressLint("MissingPermission")
     @Suppress("DEPRECATION")
     private fun cellularDetail(telephonyManager: TelephonyManager?): String? = try {
-        // `NETWORK_TYPE_IDEN` is deprecated (legacy Nextel/Boost push-to-talk
-        // networks, defunct since ~2013) but the constant value can still be
-        // returned by `dataNetworkType` on old devices, so we still classify
-        // it as 2G rather than dropping the branch.
-        when (telephonyManager?.dataNetworkType) {
-            TelephonyManager.NETWORK_TYPE_GPRS -> "gprs"
-            TelephonyManager.NETWORK_TYPE_EDGE -> "edge"
-            TelephonyManager.NETWORK_TYPE_CDMA,
-            TelephonyManager.NETWORK_TYPE_1xRTT,
-            TelephonyManager.NETWORK_TYPE_IDEN,
-            -> "2g"
-            TelephonyManager.NETWORK_TYPE_UMTS, TelephonyManager.NETWORK_TYPE_EVDO_0,
-            TelephonyManager.NETWORK_TYPE_EVDO_A, TelephonyManager.NETWORK_TYPE_EVDO_B,
-            -> "3g"
-            TelephonyManager.NETWORK_TYPE_HSDPA, TelephonyManager.NETWORK_TYPE_HSUPA,
-            TelephonyManager.NETWORK_TYPE_HSPA, TelephonyManager.NETWORK_TYPE_EHRPD,
-            TelephonyManager.NETWORK_TYPE_HSPAP,
-            -> "hspa"
-            TelephonyManager.NETWORK_TYPE_LTE -> "lte"
-            TelephonyManager.NETWORK_TYPE_NR -> "5g"
-            else -> null
-        }
+        mapCellularDetail(telephonyManager?.dataNetworkType)
     } catch (_: SecurityException) {
         null
     }
+
+    // `NETWORK_TYPE_IDEN` is deprecated (legacy Nextel/Boost push-to-talk
+    // networks, defunct since ~2013) but the constant value can still be
+    // returned by `dataNetworkType` on old devices, so we still classify
+    // it as 2G rather than dropping the branch.
+    @Suppress("DEPRECATION")
+    internal fun mapCellularDetail(networkType: Int?): String? = when (networkType) {
+        null -> null
+        TelephonyManager.NETWORK_TYPE_GPRS -> "gprs"
+        TelephonyManager.NETWORK_TYPE_EDGE -> "edge"
+        TelephonyManager.NETWORK_TYPE_GSM,
+        TelephonyManager.NETWORK_TYPE_CDMA,
+        TelephonyManager.NETWORK_TYPE_1xRTT,
+        TelephonyManager.NETWORK_TYPE_IDEN,
+        -> "2g"
+        TelephonyManager.NETWORK_TYPE_UMTS,
+        TelephonyManager.NETWORK_TYPE_EVDO_0,
+        TelephonyManager.NETWORK_TYPE_EVDO_A,
+        TelephonyManager.NETWORK_TYPE_EVDO_B,
+        TelephonyManager.NETWORK_TYPE_TD_SCDMA,
+        -> "3g"
+        TelephonyManager.NETWORK_TYPE_HSDPA,
+        TelephonyManager.NETWORK_TYPE_HSUPA,
+        TelephonyManager.NETWORK_TYPE_HSPA,
+        TelephonyManager.NETWORK_TYPE_EHRPD,
+        TelephonyManager.NETWORK_TYPE_HSPAP,
+        -> "hspa"
+        TelephonyManager.NETWORK_TYPE_LTE,
+        NETWORK_TYPE_LTE_CA,
+        -> "lte"
+        TelephonyManager.NETWORK_TYPE_NR -> "5g"
+        TelephonyManager.NETWORK_TYPE_IWLAN -> "other"
+        else -> "cellular"
+    }
+
+    private const val NETWORK_TYPE_LTE_CA = 19
 }
