@@ -13,10 +13,14 @@ import java.util.UUID
  * client identity independent of `conversationId` or `userId`.
  *
  * Survives app launches; resets only when the user uninstalls the app or
- * clears app data. Mirrors iOS `InstallIdProvider` (which reads/writes
- * `UserDefaults.standard` under the same `kontextso:installId` field name)
- * and the `kontextso:installId` localStorage key used by `@kontextso/sdk-js`
- * so web and native installs share the same shape on the wire.
+ * clears app data. The on-the-wire DTO field is `installId` — the same
+ * field name iOS `InstallIdProvider` writes and the same field name
+ * `@kontextso/sdk-js` writes, so web, iOS, and Android installs share the
+ * same shape in the request body. Per-platform local-storage layout
+ * differs and is intentionally not part of the shared contract: iOS uses
+ * a flat `UserDefaults` key (`kontextso.installId`); sdk-js uses
+ * `localStorage` key `kontextso:installId`; Android uses a dedicated
+ * `kontextso` `SharedPreferences` file with the `installId` key.
  *
  * Storage location: a dedicated `kontextso` prefs file rather than the
  * host app's default prefs. Keeps the install ID out of any prefs file
@@ -31,6 +35,14 @@ public object InstallIdProvider {
 
     private val canonicalUuidRegex: Regex =
         Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+    /**
+     * Shared, thread-safe PRNG. `SecureRandom` is documented thread-safe and
+     * is intended to be reused — instantiating one per `uuidv7()` call would
+     * re-seed from `/dev/urandom` every time, which is measurably slow on
+     * older Android devices.
+     */
+    private val secureRandom: SecureRandom = SecureRandom()
 
     /**
      * Returns the persisted install ID, generating + storing one on first
@@ -69,7 +81,7 @@ public object InstallIdProvider {
         bytes[5] = (ts and 0xff).toByte()
         // Random bytes for the remaining 10 octets.
         val random = ByteArray(10)
-        SecureRandom().nextBytes(random)
+        secureRandom.nextBytes(random)
         System.arraycopy(random, 0, bytes, 6, 10)
         // Version 7 in the high nibble of byte 6.
         bytes[6] = ((bytes[6].toInt() and 0x0f) or 0x70).toByte()
