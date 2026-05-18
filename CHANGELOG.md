@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.4
+
+* `InstallIdProvider`: new `deviceinfo/InstallIdProvider.kt`. Returns a UUID v7 per-app-install identifier persisted in a dedicated `kontextso` `SharedPreferences` file under the `installId` key. Generated on first call, survives launches, resets only on uninstall / app-data clear. Mirrors iOS `InstallIdProvider` (UserDefaults-backed) so consumer SDKs can thread the same `installId` field through `/init`, `/preload`, `/error`, and `/debug` request payloads.
+
 ## 0.0.3
 
 Bug fixes and test coverage.
