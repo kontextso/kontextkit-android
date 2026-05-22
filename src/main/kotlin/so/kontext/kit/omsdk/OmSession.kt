@@ -39,8 +39,6 @@ public class OmSession(
     private var session: Any? = null
     private var adEvents: Any? = null
     private var started = false
-    private var loadedFired = false
-    private var impressionFired = false
 
     public val isValid: Boolean get() = session != null
 
