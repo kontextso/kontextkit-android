@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.5
+
+OMID compliance + Kotlin 2.1 baseline.
+
+* `OmSession`: switch HTML display impression owner from `Owner.NATIVE` to `Owner.JAVASCRIPT` (was wrongly assumed to suppress JS geometry polling — IAB validator flagged the resulting impression events). Now matches v3 sdk-kotlin, kontextkit-ios, and the IAB OMID Android v1.6.4 reference demo: `Owner.JAVASCRIPT` for impression on both display and video; `mediaEventsOwner` stays NONE for display, JAVASCRIPT for video. Native-side `AdEvents` construction dropped — JS verification scripts now own `loaded()` + `impressionOccurred()` for both creative types. `OmSession.loaded()` / `impressionOccurred()` kept as no-ops for SDK API compatibility (consuming SDKs still reference them).
+* Toolchain: Kotlin 1.9.22 → **2.1.0**, AGP 8.6.1 → 8.7.3, Gradle 8.7 → 8.9, detekt 1.23.4 → 1.23.8, spotless 6.25.0 → 7.2.1. Aligns with sdk-kotlin 2.1 baseline so consuming apps already on Kotlin 2.x stop hitting compiler-output / metadata mismatches.
+
 ## 0.0.4
 
 * `InstallIdProvider`: new `deviceinfo/InstallIdProvider.kt`. Returns a UUID v7 per-app-install identifier persisted in a dedicated `kontextso` `SharedPreferences` file under the `installId` key. Generated on first call, survives launches, resets only on uninstall / app-data clear. Mirrors iOS `InstallIdProvider` (UserDefaults-backed) so consumer SDKs can thread the same `installId` field through `/init`, `/preload`, `/error`, and `/debug` request payloads.
