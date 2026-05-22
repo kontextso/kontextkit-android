@@ -58,3 +58,10 @@ dependencyResolutionManagement {
 // Display name in IDE + Gradle output paths. Independent of the
 // artifact ID we publish to Maven Central (`kontext-kit-android`).
 rootProject.name = "kontext-kit-android"
+
+// Thin redistribution subproject for the IAB Open Measurement SDK
+// Android AAR. Published as `so.kontext.iab:omsdk-android:1.6.4` so
+// kontextkit-android consumers can resolve OMID transitively from
+// Maven Central without vendoring the AAR themselves. See
+// `omsdk-android/build.gradle.kts` for the full rationale.
+include(":omsdk-android")

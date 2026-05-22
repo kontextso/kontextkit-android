@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.6
+
+IAB OMID AAR redistribution — consumers can now resolve `so.kontext.kit:kontext-kit-android` from Maven Central without vendoring the IAB OMID AAR locally.
+
+* `:omsdk-android` (new subproject): thin republish of the unmodified IAB Tech Lab Open Measurement SDK Android AAR under our own `so.kontext.iab:omsdk-android:1.6.4` coordinate. IAB Tech Lab distributes the original AAR off Maven Central via their compliance portal, so consumers of any Kontext SDK on Android (sdk-kotlin, sdk-react-native, sdk-flutter) previously had to vendor the AAR themselves. The redistribution complies with OM License v1.1 Section 4: AAR shipped in Object form unchanged, LICENSE text bundled in the source repo (`omsdk-android/LICENSE`) and referenced from the published POM. The main `:kontext-kit-android` module now declares `so.kontext.iab:omsdk-android:1.6.4` as a `runtime`-scope dep in its POM, so the OMID classes flow into the host APK transitively without leaking onto consumers' compile classpath (`OmManager` continues to access OMID purely via reflection).
+* No public API changes to the existing `OmManager` / `OmSession` surface.
+
 ## 0.0.5
 
 OMID compliance + Kotlin 2.1 baseline.

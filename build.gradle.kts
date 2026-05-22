@@ -53,10 +53,21 @@ dependencies {
     // Required by AdvertisingIdProvider (GAID via Play Services)
     implementation(libs.play.services.ads.identifier)
 
-    // OmManager accesses the IAB OMID SDK entirely via reflection at
-    // runtime (the AAR is bundled in local-maven/ next to this build file
-    // and the host app provides it). Not declared as a build dep here
-    // because AAR transform fails in CI unit tests; consumers wire the AAR.
+    // IAB OMID Android — `OmManager` accesses OMID purely via reflection,
+    // but the classes have to be on the runtime classpath of the host app
+    // for the reflective loader to succeed (otherwise OMID gracefully
+    // degrades to no-op session lifecycle, killing measurement coverage).
+    // Declaring as `implementation` here means the IAB coordinate ends up
+    // in our published POM at `runtime` scope, so AGP merges the AAR into
+    // the final APK without exposing OMID's API surface on the consumer's
+    // compile classpath. Same UX as kontextkit-ios shipping the OMSDK
+    // xcframework inside the podspec.
+    //
+    // The `:omsdk-android` subproject republishes the unmodified IAB AAR
+    // as `so.kontext.iab:omsdk-android:1.6.4` (see its build.gradle.kts).
+    // Vanniktech maven-publish translates this `project(...)` dep to the
+    // Maven coordinate in the published POM.
+    implementation(project(":omsdk-android"))
 
     // Tests use JUnit 4 + Robolectric (matches v3 sdk-kotlin's :ads test stack).
     testImplementation(libs.junit)
@@ -70,7 +81,14 @@ dependencies {
 // Credentials come from Gradle properties at publish time.
 mavenPublishing {
     publishToMavenCentral(automaticRelease = true)
-    signAllPublications()
+    // Local `publishToMavenLocal` runs without GPG creds, so don't enable
+    // signing then. Maven Central enforces signatures on upload — CI sets
+    // `signingInMemoryKey` env which flips this branch on.
+    val hasSigningKey = (findProperty("signingInMemoryKey") as String?) != null ||
+        System.getenv("ORG_GRADLE_PROJECT_signingInMemoryKey") != null
+    if (hasSigningKey) {
+        signAllPublications()
+    }
 
     coordinates(
         groupId = group.toString(),
