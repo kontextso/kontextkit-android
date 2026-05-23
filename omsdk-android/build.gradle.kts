@@ -110,6 +110,25 @@ tasks.withType<GenerateModuleMetadata>().configureEach {
     enabled = false
 }
 
+// --- Maven Central publish gate -------------------------------------------
+// The IAB OMID AAR (1.6.4) is immutable on Maven Central once uploaded, and
+// its version is independent of KontextKit's semver. Normal KontextKit
+// releases must NOT re-upload it: the Central Portal rejects an
+// already-existing coordinate and fails the *entire aggregated deployment*
+// (vanniktech bundles every module in one Gradle invocation into a single
+// deployment). That is exactly what broke the 0.0.7 release — the bundle
+// paired the new `kontext-kit-android:0.0.7` with the already-published
+// `omsdk-android:1.6.4`, so neither published.
+//
+// Publish this module only when the AAR itself changes, by passing
+// `-PpublishOmsdk=true`. Otherwise its Maven Central upload tasks are
+// disabled, so a normal release deployment carries only the main module.
+val publishOmsdk = (project.findProperty("publishOmsdk") as String?) == "true"
+if (!publishOmsdk) {
+    tasks.matching { it.name.contains("MavenCentral") }
+        .configureEach { enabled = false }
+}
+
 // Swap vanniktech's default jar artifact for the IAB AAR. `afterEvaluate`
 // because vanniktech registers its publication during `apply()` and we
 // need to mutate it after that registration completes.
