@@ -70,7 +70,7 @@ Versioning: semver. The published version is set via `gradle/libs.versions.toml`
 
 ## Conventions
 
-- **Kotlin 1.9.22**, JDK 17, AGP 8.2.0, `compileSdk = 34`, `minSdk = 26`. AndroidX-only (Jetifier off).
+- **Kotlin 1.9.22**, JDK 17, AGP 8.2.0, `compileSdk = 34`, `minSdk = 24`. AndroidX-only (Jetifier off).
 - **`explicitApi()` mode is on** — every top-level and class member must spell out its visibility (`public` / `internal` / `private`) and public functions need an explicit return type. Catches accidentally-public helpers before they become committed surface area.
 - **No comments** unless the why is non-obvious (hidden constraint, subtle invariant, workaround for a specific bug, behavior that would surprise a reader). Don't ref PRs or tickets in code.
 - **OMID AAR is loaded reflectively** by `OmManager` — it isn't declared as a Gradle dep because AAR transform fails in CI unit tests. Consuming apps wire the AAR in their own build.

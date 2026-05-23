@@ -21,7 +21,7 @@ android {
     namespace = "so.kontext.kit"
     compileSdk = 34
     defaultConfig {
-        minSdk = 26
+        minSdk = 24
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
