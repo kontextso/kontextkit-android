@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.7
+
+Lower `minSdk` from 26 to 24.
+
+* `minSdk` 26 → 24 (Android 8.0 Oreo → Android 7.0 Nougat). Nothing in KontextKit requires API 26 — no `@RequiresApi` gates and no `java.time` usage (`InstallIdProvider` uses only `SecureRandom` / `UUID` / `currentTimeMillis`) — so the floor is lowered to widen device coverage for consuming SDKs. The bundled IAB OMID AAR merges cleanly at `minSdk 24` (no `tools:overrideLibrary` needed). No public API changes.
+
 ## 0.0.6
 
 IAB OMID AAR redistribution — consumers can now resolve `so.kontext.kit:kontext-kit-android` from Maven Central without vendoring the IAB OMID AAR locally.
