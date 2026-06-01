@@ -251,6 +251,16 @@ public class OmManager(partner: OmPartner) : OmManaging {
         private var permanentlyUnavailable = false
 
         /**
+         * Resets the process-global activation flags. Test-only — the flags are
+         * static and otherwise leak across test cases in the same JVM. Not part
+         * of the runtime contract; never called in production.
+         */
+        internal fun resetActivationStateForTest() {
+            globallyActivated = false
+            permanentlyUnavailable = false
+        }
+
+        /**
          * Pause between OmSession init (which calls `registerAdView`) and
          * `start()` for display ads — gives WebView geometry a chance to
          * settle so the OMID `loaded` and `impression` JS events fire
