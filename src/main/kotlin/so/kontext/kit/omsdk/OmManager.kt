@@ -1,6 +1,8 @@
 package so.kontext.kit.omsdk
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.webkit.WebView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -39,7 +41,6 @@ public interface OmManaging {
  */
 public class OmManager(partner: OmPartner) : OmManaging {
 
-    private var activated = false
     private val partner: OmPartner = partner
     private var cachedPartner: Any? = null
 
@@ -47,23 +48,77 @@ public class OmManager(partner: OmPartner) : OmManaging {
      * Activates the OMID SDK. Idempotent — subsequent calls return the
      * already-active state. Requires a Context to register the SDK with
      * the host application.
+     *
+     * Activation state is process-global ([globallyActivated]) because the
+     * underlying OMID SDK is a process-wide singleton: once it is up, every
+     * [OmManager] (one per [so.kontext.kit] consumer Session) shares it.
+     *
+     * The reflective `Omid.activate()` call is marshalled onto the main
+     * thread: OMID creates `Handler`s during activation and its viewability
+     * `TreeWalker` runs on the main `Looper`. If a publisher calls
+     * `createSession()` (→ Session init → `activate()`) from a background
+     * coroutine, activating off-main throws "Can't create handler … that has
+     * not called Looper.prepare()", which leaves OMID half-initialized — and
+     * because OMID flips its internal `isActive` flag *before* that throw, its
+     * own guard then no-ops every retry. A later session would sail through
+     * that guard, arm the half-initialized `TreeWalker`, and crash on the main
+     * thread dereferencing a never-initialized `WeakReference`. Running on the
+     * main thread avoids the throw entirely; [permanentlyUnavailable] is the
+     * defense-in-depth backstop if activation ever fails for any other reason.
      */
     public override fun activate(context: Context): Boolean {
-        if (activated) return true
-
-        return try {
-            val omidClass = Class.forName("com.iab.omid.library.kontextso.Omid")
-            val activateMethod = omidClass.getMethod("activate", Context::class.java)
-            activateMethod.invoke(null, context)
-            val isActiveMethod = omidClass.getMethod("isActive")
-            activated = isActiveMethod.invoke(null) as Boolean
-            if (activated) {
-                cachedPartner = createOmidPartner()
+        if (!permanentlyUnavailable && !globallyActivated) {
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                activateGlobalOmid(context)
+            } else {
+                // Activation is fire-and-forget on the main thread (never
+                // blocking the caller): blocking the caller while posting to
+                // main deadlocks if the caller is itself holding up the main
+                // thread (e.g. a `runBlocking` on main). Sessions start OMID
+                // much later — after preload + ad-done, also on the main
+                // thread — so this posted activation always completes first.
+                Handler(Looper.getMainLooper()).post {
+                    if (!permanentlyUnavailable && !globallyActivated) {
+                        activateGlobalOmid(context)
+                    }
+                    ensurePartner()
+                }
             }
-            activated
+        }
+        ensurePartner()
+        return globallyActivated
+    }
+
+    /**
+     * Performs the one-time, process-wide OMID activation. Always invoked on
+     * the main thread (inline when the caller is on main, otherwise from the
+     * posted runnable in [activate]) because `Omid.activate()` creates
+     * `Handler`s and the viewability `TreeWalker` runs on the main `Looper`.
+     * On success sets [globallyActivated]; on any failure sets
+     * [permanentlyUnavailable] so no session is ever created this process and
+     * the half-initialized `TreeWalker` can never be armed. `Method.invoke`
+     * wraps a thrown target exception in `InvocationTargetException`, which is
+     * a [ReflectiveOperationException] — so this single catch covers both
+     * missing-AAR and activation-time failures.
+     */
+    private fun activateGlobalOmid(context: Context) {
+        try {
+            val omidClass = Class.forName("com.iab.omid.library.kontextso.Omid")
+            omidClass.getMethod("activate", Context::class.java).invoke(null, context)
+            if (omidClass.getMethod("isActive").invoke(null) == true) {
+                globallyActivated = true
+            } else {
+                permanentlyUnavailable = true
+            }
         } catch (e: ReflectiveOperationException) {
-            android.util.Log.w(TAG, "OM: activation failed (OMSDK not available)", e)
-            false
+            permanentlyUnavailable = true
+            android.util.Log.w(TAG, "OM: activation failed — disabling OMID for process", e)
+        }
+    }
+
+    private fun ensurePartner() {
+        if (globallyActivated && cachedPartner == null) {
+            cachedPartner = createOmidPartner()
         }
     }
 
@@ -83,11 +138,11 @@ public class OmManager(partner: OmPartner) : OmManaging {
         creativeType: OmCreativeType,
     ): OmSession? {
         val partnerRef = cachedPartner
-        if (!activated || partnerRef == null) {
+        if (permanentlyUnavailable || !globallyActivated || partnerRef == null) {
             android.util.Log.w(
                 TAG,
                 "createSession: cannot create — " +
-                    "activated=$activated partner=${partnerRef != null}",
+                    "activated=$globallyActivated partner=${partnerRef != null}",
             )
             return null
         }
@@ -174,6 +229,36 @@ public class OmManager(partner: OmPartner) : OmManaging {
 
     public companion object {
         private const val TAG = "KontextKit/OM"
+
+        /**
+         * Process-global OMID activation state. The OMID SDK is a process-wide
+         * singleton, so the first [OmManager] to activate it sets this `true`
+         * and every later manager reuses the live SDK instead of re-activating.
+         */
+        @Volatile
+        private var globallyActivated = false
+
+        /**
+         * Sticky kill-switch set when `Omid.activate()` ever fails (throws, or
+         * leaves the SDK inactive). OMID flips its own `isActive` flag before a
+         * mid-activation throw, leaving it half-initialized and its retry-guard
+         * permanently no-op; once that happens, starting any session arms a
+         * broken `TreeWalker` that crashes on the main thread. When this is set,
+         * no manager will activate or create a session for the rest of the
+         * process, so the walker is never armed and the crash cannot occur.
+         */
+        @Volatile
+        private var permanentlyUnavailable = false
+
+        /**
+         * Resets the process-global activation flags. Test-only — the flags are
+         * static and otherwise leak across test cases in the same JVM. Not part
+         * of the runtime contract; never called in production.
+         */
+        internal fun resetActivationStateForTest() {
+            globallyActivated = false
+            permanentlyUnavailable = false
+        }
 
         /**
          * Pause between OmSession init (which calls `registerAdView`) and

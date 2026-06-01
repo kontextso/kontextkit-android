@@ -1,15 +1,22 @@
 package so.kontext.kit.omsdk
 
 import android.content.Context
+import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * The OMID AAR is not on the test classpath (declared as host-app
@@ -25,6 +32,14 @@ class OmManagerTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val partner = OmPartner(name = "Kontextso", version = "1.0.0")
 
+    @Before
+    fun resetGlobalState() {
+        // Activation state is process-global (the OMID SDK is a process-wide
+        // singleton), so it leaks across test cases in the same JVM. Reset it
+        // before each test for isolation.
+        OmManager.resetActivationStateForTest()
+    }
+
     @Test
     fun `activate returns false when OMSDK class not on classpath`() {
         val manager = OmManager(partner)
@@ -39,8 +54,8 @@ class OmManagerTest {
         val manager = OmManager(partner)
         val first = manager.activate(context)
         val second = manager.activate(context)
-        // Both calls return the same activated state — manager caches
-        // the result on the first call.
+        // Both calls return the same state — the first failure sets the
+        // process-global kill-switch, so the second call short-circuits.
         assertFalse(first)
         assertFalse(second)
     }
@@ -85,16 +100,73 @@ class OmManagerTest {
     }
 
     @Test
-    fun `each manager instance is independent (no shared global state)`() {
-        // The caller-owned design lets multiple Sessions exist with their
-        // own OmManager instances — used in tests to inject mocks.
+    fun `activate from a background thread does not block, throw, or deadlock`() {
+        // The core fix: OMID's Omid.activate() creates Handlers and must run on
+        // the main thread. When called off-main it is *posted* to the main
+        // Looper (fire-and-forget) — never run inline (which crashed) and never
+        // blocked-awaited (which deadlocked a caller holding the main thread,
+        // e.g. runBlocking on main → the field ANR). This guards both.
+        val manager = OmManager(partner)
+        val returned = AtomicBoolean(false)
+        val error = AtomicReference<Throwable?>(null)
+
+        val thread = Thread {
+            try {
+                manager.activate(context)
+                returned.set(true)
+            } catch (t: Throwable) {
+                error.set(t)
+            }
+        }
+        thread.start()
+        thread.join(2_000) // would hang here if activate() blocked on the main thread
+
+        assertFalse("activate() must not hang when called off the main thread", thread.isAlive)
+        assertTrue("activate() must return when called off the main thread", returned.get())
+        assertNull(
+            "activate() must not throw off-main — the off-main Handler crash is the bug being fixed",
+            error.get(),
+        )
+        // Drain the activation posted to the main Looper (OMID AAR absent here,
+        // so it fails gracefully and sets the kill-switch).
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    @Test
+    fun `failed activation is sticky — createSession returns null afterward`() = runTest {
+        // Once Omid.activate() fails (here: AAR absent), OMID is disabled
+        // process-wide so no session is ever created and the TreeWalker is
+        // never armed. Activation runs inline on the Robolectric main thread.
+        val manager = OmManager(partner)
+        assertFalse(manager.activate(context))
+
+        val session = manager.createSession(
+            webView = android.webkit.WebView(context),
+            url = null,
+            creativeType = OmCreativeType.DISPLAY,
+        )
+        assertNull("a failed activation must keep createSession returning null", session)
+    }
+
+    @Test
+    fun `activation state is shared across manager instances`() {
+        // Activation state is process-global, not per-instance: one manager's
+        // failed activation leaves OMID unavailable for a second manager too,
+        // so it also refuses to create a session. (The happy path — one
+        // manager activating and a second reusing it — needs the OMID AAR and
+        // is covered by the on-device repro, not here.)
         val managerA = OmManager(partner)
-        val managerB = OmManager(OmPartner("Other", "9.9.9"))
         managerA.activate(context)
-        managerB.activate(context)
-        // Both stay un-activated because no OMID AAR; the test is about
-        // independence (no exception cross-talk), not about activation
-        // success.
+
+        val managerB = OmManager(OmPartner("Other", "9.9.9"))
+        val sessionB = runBlocking {
+            managerB.createSession(
+                webView = android.webkit.WebView(context),
+                url = null,
+                creativeType = OmCreativeType.DISPLAY,
+            )
+        }
+        assertNull(sessionB)
     }
 
     // pollWithTimeout — exercise the deadline math directly without needing
