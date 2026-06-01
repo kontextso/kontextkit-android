@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.8
+
+Fix an OMID activation crash when `createSession()` is called off the main thread.
+
+* `OmManager`: `Omid.activate()` is now always run on the main thread, and activation state is process-global with a sticky "permanently unavailable" guard. Previously, a consumer that called `KontextAds.createSession()` from a background coroutine (e.g. `Dispatchers.Default`) ran `Omid.activate()` off-main, where OMID's internal `new Handler()` throws `RuntimeException: Can't create handler inside thread … that has not called Looper.prepare()`. Because OMID flips its own `isActive` flag *before* that throw, the SDK was left half-initialized — its activate-guard then no-ops every retry, so the next session would start a "valid" OMID session whose process-global `TreeWalker` dereferences a never-initialized `WeakReference<Context>` and crashes the app on the main thread (`internal.k.a` → `TreeWalker.l`). Activation is now posted to the main `Looper` (non-blocking, so it cannot deadlock a caller that is itself holding the main thread); OMID session start happens later on the main thread, after the posted activation completes. If activation ever fails for any reason, OMID is disabled process-wide so the `TreeWalker` is never armed. No public API changes; viewability is restored (not merely suppressed) for off-main callers.
+
 ## 0.0.7
 
 Lower `minSdk` from 26 to 24.
