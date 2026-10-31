@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0
 
 Open Measurement moves to its own artifact, as kontextkit-ios has `KontextKitOM`.
 
