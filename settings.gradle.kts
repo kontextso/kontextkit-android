@@ -65,3 +65,6 @@ rootProject.name = "kontext-kit-android"
 // Maven Central without vendoring the AAR themselves. See
 // `omsdk-android/build.gradle.kts` for the full rationale.
 include(":omsdk-android")
+// IAB Open Measurement on top of the kit, as kontextkit-ios has KontextKitOM: only the SDKs that measure with OMID
+// depend on it, the others never ship the OMSDK binary or take on its licence.
+include(":om")

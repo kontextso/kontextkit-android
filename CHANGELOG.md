@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+Open Measurement moves to its own artifact, as kontextkit-ios has `KontextKitOM`.
+
+### Breaking
+* `OmManager`, `OmSession`, `OmPartner`, `OmCreativeType` and the bundled `omsdk_v1.js` are in the new `:om` module, published as `so.kontext.kit:kontext-kit-android-om` with the kit's version. Package and class names are unchanged: an SDK that measures with OMID adds `implementation("so.kontext.kit:kontext-kit-android-om:<version>")` next to the kit and changes nothing else. `kontext-kit-android` itself no longer carries the IAB OMSDK AAR, so an SDK without OMID (the video SDK) ships no OMSDK binary and takes on no OM licence.
+* `kontext-kit-android` declares `kotlinx-coroutines-android`, which `AdvertisingIdProvider` already used without declaring it.
+
 ## 0.0.8
 
 Fix an OMID activation crash when `createSession()` is called off the main thread.

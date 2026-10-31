@@ -53,21 +53,9 @@ dependencies {
     // Required by AdvertisingIdProvider (GAID via Play Services)
     implementation(libs.play.services.ads.identifier)
 
-    // IAB OMID Android — `OmManager` accesses OMID purely via reflection,
-    // but the classes have to be on the runtime classpath of the host app
-    // for the reflective loader to succeed (otherwise OMID gracefully
-    // degrades to no-op session lifecycle, killing measurement coverage).
-    // Declaring as `implementation` here means the IAB coordinate ends up
-    // in our published POM at `runtime` scope, so AGP merges the AAR into
-    // the final APK without exposing OMID's API surface on the consumer's
-    // compile classpath. Same UX as kontextkit-ios shipping the OMSDK
-    // xcframework inside the podspec.
-    //
-    // The `:omsdk-android` subproject republishes the unmodified IAB AAR
-    // as `so.kontext.iab:omsdk-android:1.6.4` (see its build.gradle.kts).
-    // Vanniktech maven-publish translates this `project(...)` dep to the
-    // Maven coordinate in the published POM.
-    implementation(project(":omsdk-android"))
+    // AdvertisingIdProvider's suspend read runs on Dispatchers.IO.
+    implementation(libs.kotlinx.coroutines.android)
+    // Open Measurement lives in `:om` (`kontext-kit-android-om`): the kit itself carries no OMSDK binary.
 
     // Tests use JUnit 4 + Robolectric (matches v3 sdk-kotlin's :ads test stack).
     testImplementation(libs.junit)
@@ -98,7 +86,7 @@ mavenPublishing {
 
     pom {
         name.set("Kontext Kit Android")
-        description.set("Shared Android primitives (device info, privacy, in-app browser, OMID) for the Kontext Kotlin / React Native / Flutter SDKs.")
+        description.set("Shared Android primitives (device info, privacy, in-app browser) for the Kontext Kotlin / React Native / Flutter SDKs.")
         url.set("https://www.kontext.so/advertisers")
 
         licenses {
