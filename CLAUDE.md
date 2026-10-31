@@ -33,10 +33,10 @@ Two suffixes carry meaning. Pick whichever fits the code's *shape*, not its doma
 ```
 src/main/kotlin/so/kontext/kit/
   deviceinfo/   AdvertisingIdProvider, App/HW/OS/Screen/Battery/Audio/NetworkInfoProvider, BrightnessManager
-  omsdk/        OmManager, OmSession, OmPartner, OmCreativeType
   privacy/      TCFDataProvider
   ui/           InAppBrowserManager
-src/main/res/raw/omsdk_v1.js     bundled OMID JS for WebView injection
+om/                              IAB Open Measurement: omsdk/ (OmManager, OmSession, OmPartner, OmCreativeType) and
+                                 res/raw/omsdk_v1.js; published as kontext-kit-android-om
 src/main/AndroidManifest.xml     declares ACCESS_NETWORK_STATE + AD_ID perms
 src/test/kotlin/                 mirrors main/ layout (JUnit 4 + Robolectric)
 local-maven/iab/omsdk-android/   vendored IAB OMID AAR (1.6.4), loaded reflectively at runtime
@@ -73,7 +73,7 @@ Versioning: semver. The published version is set via `gradle/libs.versions.toml`
 - **Kotlin 2.1.0**, JDK 17, AGP 8.7.3, `compileSdk = 34`, `minSdk = 24`. AndroidX-only (Jetifier off).
 - **`explicitApi()` mode is on** — every top-level and class member must spell out its visibility (`public` / `internal` / `private`) and public functions need an explicit return type. Catches accidentally-public helpers before they become committed surface area.
 - **No comments** unless the why is non-obvious (hidden constraint, subtle invariant, workaround for a specific bug, behavior that would surprise a reader). Don't ref PRs or tickets in code.
-- **OMID AAR is loaded reflectively** by `OmManager` — it isn't declared as a Gradle dep because AAR transform fails in CI unit tests. Consuming apps wire the AAR in their own build.
+- **OMID lives in `:om`** (`kontext-kit-android-om`): the kit itself has no OMSDK dependency. `OmManager` loads the OMID classes reflectively; `:om` declares `:omsdk-android` at runtime scope so they reach the host APK.
 
 ## Related repos
 

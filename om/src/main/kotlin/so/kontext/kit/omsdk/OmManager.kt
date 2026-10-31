@@ -6,7 +6,7 @@ import android.os.Looper
 import android.webkit.WebView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
-import so.kontext.kit.R
+import so.kontext.kit.om.R
 import kotlin.coroutines.resume
 
 /**
