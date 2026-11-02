@@ -1,7 +1,7 @@
 package so.kontext.kit.privacy
 
 import android.content.Context
-import androidx.preference.PreferenceManager
+import android.content.SharedPreferences
 
 /**
  * Reads IAB Transparency and Consent Framework (TCF) v2 data from
@@ -39,7 +39,7 @@ public object TCFDataProvider {
     )
 
     public fun collect(context: Context): TCFData {
-        val all = PreferenceManager.getDefaultSharedPreferences(context).all
+        val all = defaultSharedPreferences(context).all
         return TCFData(
             gdpr = normalizedGdprApplies(all[KEY_GDPR_APPLIES]),
             gdprConsent = normalizedTcString(all[KEY_TC_STRING] as? String),
@@ -61,6 +61,11 @@ public object TCFDataProvider {
             "gdpr" to tcf.gdpr,
         )
     }
+
+    // The app's default prefs file, as `PreferenceManager.getDefaultSharedPreferences` names it: CMPs
+    // write the IAB keys there, and reading it directly spares the kit the androidx.preference dependency.
+    private fun defaultSharedPreferences(context: Context): SharedPreferences =
+        context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
 
     private fun normalizedTcString(raw: String?): String? =
         raw?.takeIf { it.isNotBlank() }

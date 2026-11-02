@@ -4,7 +4,6 @@ package so.kontext.kit.privacy
 // Run with: ./gradlew :KontextKit:testDebugUnitTest --tests "so.kontext.kit.TCFDataProviderTest"
 
 import android.content.Context
-import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -22,12 +21,12 @@ class TCFDataProviderTest {
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         // Clear shared preferences before each test
-        PreferenceManager.getDefaultSharedPreferences(context).edit().clear().apply()
+        defaultPrefs().edit().clear().apply()
     }
 
     @Test
     fun `returns consent string when IABTCF_TCString is set`() {
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = defaultPrefs()
         prefs.edit().putString("IABTCF_TCString", "test-consent-string").apply()
 
         val result = TCFDataProvider.collect(context)
@@ -36,7 +35,7 @@ class TCFDataProviderTest {
 
     @Test
     fun `returns gdpr 1 when IABTCF_gdprApplies is 1`() {
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = defaultPrefs()
         prefs.edit().putInt("IABTCF_gdprApplies", 1).apply()
 
         val result = TCFDataProvider.collect(context)
@@ -45,7 +44,7 @@ class TCFDataProviderTest {
 
     @Test
     fun `returns gdpr 0 when IABTCF_gdprApplies is 0`() {
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = defaultPrefs()
         prefs.edit().putInt("IABTCF_gdprApplies", 0).apply()
 
         val result = TCFDataProvider.collect(context)
@@ -61,7 +60,7 @@ class TCFDataProviderTest {
 
     @Test
     fun `returns both gdpr and consent string when both keys are set`() {
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = defaultPrefs()
         prefs.edit()
             .putInt("IABTCF_gdprApplies", 1)
             .putString("IABTCF_TCString", "full-consent-string")
@@ -74,7 +73,7 @@ class TCFDataProviderTest {
 
     @Test
     fun `returns null gdprConsent when IABTCF_TCString is not set but gdprApplies is`() {
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = defaultPrefs()
         prefs.edit().putInt("IABTCF_gdprApplies", 1).apply()
 
         val result = TCFDataProvider.collect(context)
@@ -85,7 +84,7 @@ class TCFDataProviderTest {
     @Test
     fun `rejects empty TCString`() {
         // CMP wrote an empty string — invalid per IAB spec, treat as absent.
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = defaultPrefs()
         prefs.edit().putString("IABTCF_TCString", "").apply()
 
         val result = TCFDataProvider.collect(context)
@@ -95,7 +94,7 @@ class TCFDataProviderTest {
     @Test
     fun `rejects whitespace-only TCString`() {
         // Whitespace-only is also invalid — same defensive normalisation as iOS.
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = defaultPrefs()
         prefs.edit().putString("IABTCF_TCString", "   ").apply()
 
         val result = TCFDataProvider.collect(context)
@@ -107,7 +106,7 @@ class TCFDataProviderTest {
         // Per IAB TCF v2.2, gdprApplies must be 0 or 1. Buggy CMPs writing
         // anything else (5, -1, 2, …) decay to null rather than being
         // forwarded to the ad server as junk.
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = defaultPrefs()
 
         prefs.edit().putInt("IABTCF_gdprApplies", 5).apply()
         assertNull(TCFDataProvider.collect(context).gdpr)
@@ -123,7 +122,7 @@ class TCFDataProviderTest {
     fun `accepts gdprApplies stored as a String`() {
         // Some misbehaving CMPs write the value as a String. `getInt` would
         // throw ClassCastException — defensive read parses it instead.
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = defaultPrefs()
 
         prefs.edit().putString("IABTCF_gdprApplies", "1").apply()
         assertEquals(1, TCFDataProvider.collect(context).gdpr)
@@ -145,7 +144,7 @@ class TCFDataProviderTest {
         // SharedPreferences offers no `putLong` for our key, but `getAll`
         // can surface Long values when keys are written by other code paths
         // sharing the same prefs file. 0/1 Longs round-trip cleanly.
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = defaultPrefs()
 
         prefs.edit().putLong("IABTCF_gdprApplies", 1L).apply()
         assertEquals(1, TCFDataProvider.collect(context).gdpr)
@@ -160,7 +159,7 @@ class TCFDataProviderTest {
         // truncate to Int.MAX_VALUE (or worse, an in-range value via
         // overflow). The `raw.toInt().takeIf { it.toLong() == raw }` guard
         // catches the lossy conversion and decays to null.
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = defaultPrefs()
 
         prefs.edit().putLong("IABTCF_gdprApplies", Long.MAX_VALUE).apply()
         assertNull(TCFDataProvider.collect(context).gdpr)
@@ -177,7 +176,7 @@ class TCFDataProviderTest {
     @Test
     fun `accepts gdprApplies stored as a Boolean`() {
         // Some CMPs write a Bool — coerced to 1/0.
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = defaultPrefs()
 
         prefs.edit().putBoolean("IABTCF_gdprApplies", true).apply()
         assertEquals(1, TCFDataProvider.collect(context).gdpr)
@@ -188,7 +187,7 @@ class TCFDataProviderTest {
 
     @Test
     fun `collectAsDict emits ad-server-matching keys (gdpr, gdprConsent)`() {
-        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = defaultPrefs()
         prefs.edit()
             .putInt("IABTCF_gdprApplies", 1)
             .putString("IABTCF_TCString", "consent-xyz")
@@ -211,4 +210,17 @@ class TCFDataProviderTest {
         assertNull(dict["gdprConsent"])
         assertNull(dict["gdpr"])
     }
+
+    @Test
+    fun `reads the file the framework names as the default prefs`() {
+        @Suppress("DEPRECATION")
+        val frameworkDefault = android.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        frameworkDefault.edit().putString("IABTCF_TCString", "framework-default").commit()
+
+        assertEquals("framework-default", TCFDataProvider.collect(context).gdprConsent)
+    }
+
+    // The app's default prefs file, which CMPs write the IAB keys to.
+    private fun defaultPrefs() =
+        context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
 }

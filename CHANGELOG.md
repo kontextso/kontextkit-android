@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0
+
+Smaller dependency graph.
+
+* `TCFDataProvider` reads the app's default `SharedPreferences` file (`<packageName>_preferences`) directly instead of through `androidx.preference`, which the kit no longer depends on. It reads the same file and keys as before. Dropping it removes `appcompat`, `recyclerview`, `activity`, `savedstate`, `transition`, `window`, `vectordrawable` and the `-ktx` libraries from the runtime classpath, and lowers the `androidx.core`, `fragment` and `lifecycle` versions the kit's graph resolves to (the app's own versions still win). `fragment` 1.0.0 and `legacy-support-core-ui`/`-utils` remain, through `play-services-ads-identifier`.
+* `androidx.browser` stays: `InAppBrowserManager` opens Custom Tabs with it.
+
 ## 0.1.0
 
 Open Measurement moves to its own artifact, as kontextkit-ios has `KontextKitOM`.
