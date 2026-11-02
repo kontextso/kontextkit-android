@@ -28,7 +28,6 @@ ktlint = "0.50.0"                   # consumed inside spotless { ktlint(...) }
 
 # ---- AndroidX ----
 androidx-browser = "1.7.0"          # Chrome Custom Tabs (InAppBrowserManager)
-androidx-preference = "1.2.1"       # SharedPreferences (TCFDataProvider)
 
 # ---- Play Services ----
 play-services-ads-identifier = "18.0.1"  # GAID (AdvertisingIdProvider)
@@ -44,7 +43,6 @@ kotlinx-coroutines = "1.8.1"
 
 # AndroidX
 androidx-browser = { module = "androidx.browser:browser", version.ref = "androidx-browser" }
-androidx-preference-ktx = { module = "androidx.preference:preference-ktx", version.ref = "androidx-preference" }
 
 # Play Services
 play-services-ads-identifier = { module = "com.google.android.gms:play-services-ads-identifier", version.ref = "play-services-ads-identifier" }

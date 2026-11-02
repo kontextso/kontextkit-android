@@ -48,8 +48,6 @@ kotlin {
 dependencies {
     // Required by InAppBrowserManager (Chrome Custom Tabs)
     implementation(libs.androidx.browser)
-    // Required by TCFDataProvider (PreferenceManager)
-    implementation(libs.androidx.preference.ktx)
     // Required by AdvertisingIdProvider (GAID via Play Services)
     implementation(libs.play.services.ads.identifier)
 
