@@ -33,7 +33,7 @@ Two suffixes carry meaning. Pick whichever fits the code's *shape*, not its doma
 ```
 src/main/kotlin/so/kontext/kit/
   deviceinfo/   AdvertisingIdProvider, App/HW/OS/Screen/Battery/Audio/NetworkInfoProvider, BrightnessManager
-  privacy/      TCFDataProvider
+  privacy/      TCFDataProvider (TCF only), ConsentDataProvider (TCF, GPP, US Privacy)
   ui/           InAppBrowserManager
 om/                              IAB Open Measurement: omsdk/ (OmManager, OmSession, OmPartner, OmCreativeType) and
                                  res/raw/omsdk_v1.js; published as kontext-kit-android-om

@@ -15,11 +15,11 @@ import android.os.storage.StorageVolume
  * which omits `sdCardAvailable` (no SD card concept on iOS) and always
  * returns `bootTime = nil` per Apple's required-reason API rules.
  *
- * `type` is one of `"handset"`, `"tablet"`, `"tv"` — the values the
- * server's `hardwareSchema` accepts. Form-factor classification uses
- * `UiModeManager` for TV (correct because Android TV identifies itself
- * via the UI mode) and `smallestScreenWidthDp` for tablet (the same
- * threshold AOSP uses to pick `values-sw600dp/` resources).
+ * `type` is the OpenRTB-derived form-factor set iOS's `HardwareType` uses: `"phone"`, `"tablet"`, `"tv"`,
+ * `"desktop"`, `"other"`. A consumer whose server uses other words (`handset`) maps it. Classification:
+ * `UiModeManager` for TV (Android TV identifies itself via the UI mode) and for watches, cars, appliances
+ * and VR headsets (`other`); the `android.hardware.type.pc` feature for desktops (ChromeOS); otherwise
+ * `smallestScreenWidthDp` for tablet (the threshold AOSP uses to pick `values-sw600dp/` resources), else phone.
  */
 public object HardwareInfoProvider {
 
@@ -29,7 +29,7 @@ public object HardwareInfoProvider {
      * threshold AOSP uses to pick `values-sw600dp/`.
      *
      * On foldables the classification intentionally flips when the device
-     * is folded (`sw < 600dp`, "handset") vs unfolded (`sw ≥ 600dp`,
+     * is folded (`sw < 600dp`, "phone") vs unfolded (`sw ≥ 600dp`,
      * "tablet"). The user is interacting with it as a phone vs a tablet
      * respectively, so ad targeting follows the actual interaction shape.
      */
@@ -46,22 +46,34 @@ public object HardwareInfoProvider {
     )
 
     public fun collect(context: Context): HardwareInfo {
-        val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
-        val type = if (uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) {
-            "tv"
-        } else if (context.resources.configuration.smallestScreenWidthDp >= TABLET_MIN_SW_DP) {
-            "tablet"
-        } else {
-            "handset"
-        }
         return HardwareInfo(
             brand = Build.BRAND,
             model = Build.MODEL,
-            type = type,
+            type = formFactor(context),
             bootTime = System.currentTimeMillis() - SystemClock.elapsedRealtime(),
             sdCardAvailable = sdCardAvailable(context),
         )
     }
+
+    private fun formFactor(context: Context): String {
+        val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
+        return when (uiModeManager?.currentModeType) {
+            Configuration.UI_MODE_TYPE_TELEVISION -> "tv"
+            Configuration.UI_MODE_TYPE_WATCH,
+            Configuration.UI_MODE_TYPE_CAR,
+            Configuration.UI_MODE_TYPE_APPLIANCE,
+            Configuration.UI_MODE_TYPE_VR_HEADSET,
+            -> "other"
+            else -> when {
+                context.packageManager.hasSystemFeature(FEATURE_PC) -> "desktop"
+                context.resources.configuration.smallestScreenWidthDp >= TABLET_MIN_SW_DP -> "tablet"
+                else -> "phone"
+            }
+        }
+    }
+
+    /** `PackageManager.FEATURE_PC`: a desktop or laptop, such as a Chromebook. */
+    private const val FEATURE_PC = "android.hardware.type.pc"
 
     /**
      * Checks StorageManager's volume metadata instead of counting

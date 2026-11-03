@@ -36,8 +36,35 @@ class HardwareInfoProviderTest {
 
     @Test
     @Config(qualifiers = "sw360dp")
-    fun `collect classifies sw360dp width as handset`() {
-        assertEquals("handset", HardwareInfoProvider.collect(context).type)
+    fun `collect classifies sw360dp width as phone`() {
+        // The OpenRTB-derived set iOS uses: a phone, not a handset.
+        assertEquals("phone", HardwareInfoProvider.collect(context).type)
+    }
+
+    @Test
+    @Config(qualifiers = "sw600dp")
+    fun `collect classifies a pc as desktop, before tablet`() {
+        shadowOf(context.packageManager).setSystemFeature("android.hardware.type.pc", true)
+        assertEquals("desktop", HardwareInfoProvider.collect(context).type)
+    }
+
+    @Test
+    fun `collect classifies a watch, a car, an appliance and a vr headset as other`() {
+        val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
+        for (mode in listOf(
+            Configuration.UI_MODE_TYPE_WATCH,
+            Configuration.UI_MODE_TYPE_CAR,
+            Configuration.UI_MODE_TYPE_APPLIANCE,
+            Configuration.UI_MODE_TYPE_VR_HEADSET,
+        )) {
+            shadowOf(uiModeManager).setCurrentModeType(mode)
+            assertEquals("mode $mode", "other", HardwareInfoProvider.collect(context).type)
+        }
+    }
+
+    @Test
+    fun `every type is one of the OpenRTB-derived set`() {
+        assert(HardwareInfoProvider.collect(context).type in setOf("phone", "tablet", "tv", "desktop", "other"))
     }
 
     @Test
