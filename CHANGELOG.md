@@ -2,8 +2,13 @@
 
 ## 0.3.0
 
-All three consent signals, as kontextkit-ios reads them.
+Parity with kontextkit-ios: all three consent signals, the OpenRTB form factors, and the screen in dp.
 
+### Breaking
+* `HardwareInfoProvider.type` is the OpenRTB-derived set kontextkit-ios's `HardwareType` uses: `phone` (was `handset`), `tablet`, `tv`, `desktop` (new: a ChromeOS device, the `android.hardware.type.pc` feature) and `other` (new: a watch, a car, an appliance or a VR headset). A consumer whose server expects `handset` maps `phone` to it.
+* `ScreenInfoProvider.width` and `height` are in dp, the logical size, as kontextkit-ios reports points; they were physical pixels. `dpr` is unchanged: multiply by it for physical pixels.
+
+### Added
 * `ConsentDataProvider` reads every IAB consent key a CMP writes to the app's default `SharedPreferences`: TCF v2 (`IABTCF_gdprApplies`, `IABTCF_TCString`), GPP (`IABGPP_HDR_GppString`, `IABGPP_GppSID`) and US Privacy (`IABUSPrivacy_String`), as `ConsentData(gdpr, gdprConsent, gpp, gppSid, usPrivacy)`, with `collectAsDict` for bridges. It mirrors kontextkit-ios's `ConsentDataProvider`: the same keys, field names and validation (`gdpr` exactly 0 or 1 whatever type was stored, blank strings are null, `gppSid` from `2_7`, `2,7` or a number). Values are read through `SharedPreferences.all`, so a CMP that stored an unexpected type cannot make the read throw.
 * `TCFDataProvider` is unchanged.
 

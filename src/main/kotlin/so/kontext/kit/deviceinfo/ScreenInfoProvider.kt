@@ -2,14 +2,15 @@ package so.kontext.kit.deviceinfo
 
 import android.content.Context
 import android.content.res.Configuration
+import kotlin.math.roundToInt
 
 /**
  * Reports screen geometry, dark-mode state, and brightness for ad targeting
  * and creative sizing. Mirrors iOS `ScreenInfoProvider`.
  *
- * `width` / `height` are physical pixels (matching iOS's
- * `UIScreen.nativeBounds`), not density-independent — the ad server scales
- * creatives using `dpr` (the density multiplier) on its end. `darkMode`
+ * `width` / `height` are density-independent pixels (dp), the logical size
+ * apps lay out in, as iOS reports points (`UIScreen.main.bounds`); a
+ * consumer that wants physical pixels multiplies by `dpr` (the density). `darkMode`
  * follows the *system* night mode (`UI_MODE_NIGHT_YES`), not the app's
  * theme, because creative variants are picked based on what the user is
  * actually seeing across their device. `brightness` is read via
@@ -31,8 +32,8 @@ public object ScreenInfoProvider {
         val displayMetrics = context.resources.displayMetrics
         val uiMode = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
         return ScreenInfo(
-            width = displayMetrics.widthPixels,
-            height = displayMetrics.heightPixels,
+            width = (displayMetrics.widthPixels / displayMetrics.density).roundToInt(),
+            height = (displayMetrics.heightPixels / displayMetrics.density).roundToInt(),
             dpr = displayMetrics.density.toDouble(),
             orientation = if (displayMetrics.widthPixels > displayMetrics.heightPixels) "landscape" else "portrait",
             darkMode = uiMode == Configuration.UI_MODE_NIGHT_YES,
