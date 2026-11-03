@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+All three consent signals, as kontextkit-ios reads them.
+
+* `ConsentDataProvider` reads every IAB consent key a CMP writes to the app's default `SharedPreferences`: TCF v2 (`IABTCF_gdprApplies`, `IABTCF_TCString`), GPP (`IABGPP_HDR_GppString`, `IABGPP_GppSID`) and US Privacy (`IABUSPrivacy_String`), as `ConsentData(gdpr, gdprConsent, gpp, gppSid, usPrivacy)`, with `collectAsDict` for bridges. It mirrors kontextkit-ios's `ConsentDataProvider`: the same keys, field names and validation (`gdpr` exactly 0 or 1 whatever type was stored, blank strings are null, `gppSid` from `2_7`, `2,7` or a number). Values are read through `SharedPreferences.all`, so a CMP that stored an unexpected type cannot make the read throw.
+* `TCFDataProvider` is unchanged.
+
 ## 0.2.0
 
 Smaller dependency graph.
