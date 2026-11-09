@@ -96,7 +96,15 @@ For a **manual** publish (e.g. dev / SNAPSHOT), populate `~/.gradle/gradle.prope
 ./gradlew publishToMavenCentral -PkitVersion=1.0.0
 ```
 
-## 8. Verify
+## 8. Publish the GitHub release
+
+Create the release from the tag, with the changelog section as its body, so the Releases page carries the notes:
+
+```bash
+gh release create 1.0.0 --title 1.0.0 --notes-file <(awk '/^## 1.0.0$/{f=1;next} /^## /{f=0} f' CHANGELOG.md)
+```
+
+## 9. Verify
 
 1. Check the artifact at [search.maven.org](https://search.maven.org/artifact/so.kontext.kit/kontext-kit-android).
 2. Maven Central propagation takes ~10–30 min.
