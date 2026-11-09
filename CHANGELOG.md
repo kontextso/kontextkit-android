@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+* `UuidV7.generate()`: a UUID version 7 (RFC 9562) as a lowercase string, the generator `InstallIdProvider` has always used for the install id, now public so an SDK can make time-ordered ids of its own (sdk-kotlin-video's session id). Mirrors kontextkit-ios's `UUIDv7.generate()`.
+
 ## 0.3.0
 
 Parity with kontextkit-ios: all three consent signals, the OpenRTB form factors, and the screen in dp.

@@ -45,36 +45,6 @@ class InstallIdProviderTest {
     private fun prefs(ctx: Context): SharedPreferences =
         ctx.getSharedPreferences(prefsFile, Context.MODE_PRIVATE)
 
-    // ---- uuidv7 generator -----------------------------------------------------
-
-    @Test
-    fun `uuidv7 produces canonical v7 shape`() {
-        val id = InstallIdProvider.uuidv7()
-        assertTrue("expected v7 shape, got: $id", uuidV7Pattern.matches(id))
-    }
-
-    @Test
-    fun `uuidv7 encodes current timestamp in prefix`() {
-        val before = System.currentTimeMillis()
-        val id = InstallIdProvider.uuidv7()
-        val after = System.currentTimeMillis()
-        // First 12 hex chars (without the hyphen) are the 48-bit timestamp.
-        val tsHex = id.substring(0, 8) + id.substring(9, 13)
-        val ts = tsHex.toLong(radix = 16)
-        assertTrue("ts $ts should be >= before $before", ts >= before)
-        assertTrue("ts $ts should be <= after $after", ts <= after)
-    }
-
-    @Test
-    fun `uuidv7 emits time-ordered IDs across distinct milliseconds`() {
-        val a = InstallIdProvider.uuidv7()
-        // Spin until the millisecond changes so the timestamp prefix differs.
-        val baseline = System.currentTimeMillis()
-        while (System.currentTimeMillis() == baseline) { /* spin */ }
-        val b = InstallIdProvider.uuidv7()
-        assertTrue("expected $a < $b lexicographically", a < b)
-    }
-
     // ---- getOrCreate ----------------------------------------------------------
 
     @Test
